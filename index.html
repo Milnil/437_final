@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera System Viewer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        h1 {
+            margin-bottom: 20px;
+        }
+        
+        .video-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+        
+        .video-feed {
+            border: 2px solid #333;
+            border-radius: 8px;
+            width: 320px;
+            height: 240px;
+            overflow: hidden;
+        }
+        
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-top: 20px;
+            cursor: pointer;
+            background-color: #333;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+        }
+        
+        button:hover {
+            background-color: #555;
+        }
+    </style>
+</head>
+<body>
+    <h1>Camera System Viewer</h1>
+    
+    <div class="video-container">
+        <div>
+            <h3>Normal Feed</h3>
+            <img id="normal-feed" class="video-feed" src="" alt="Normal Video Feed">
+        </div>
+        
+        <div>
+            <h3>Object Detection Feed</h3>
+            <img id="detection-feed" class="video-feed" src="" alt="Object Detection Feed">
+        </div>
+    </div>
+    
+    <button id="start-stream">Start Stream</button>
+    <button id="stop-stream">Stop Stream</button>
+    
+    <script>
+        let normalInterval;
+        let detectionInterval;
+        
+        document.getElementById('start-stream').addEventListener('click', () => {
+            startStream();
+        });
+        
+        document.getElementById('stop-stream').addEventListener('click', () => {
+            stopStream();
+        });
+        
+        function startStream() {
+            stopStream(); // Stop any existing intervals before starting new ones
+            
+            normalInterval = setInterval(() => {
+                fetch('http://192.168.10.59:65434', {
+                    method: 'POST',
+                    body: 'capture_normal'
+                })
+                .then(response => response.blob())
+                .then(blob => {
+                    const url = URL.createObjectURL(blob);
+                    document.getElementById('normal-feed').src = url;
+                })
+                .catch(error => console.error('Error fetching normal image:', error));
+            }, 1000);
+            
+            detectionInterval = setInterval(() => {
+                fetch('http://192.168.10.59:65434', {
+                    method: 'POST',
+                    body: 'capture_with_detection'
+                })
+                .then(response => response.blob())
+                .then(blob => {
+                    const url = URL.createObjectURL(blob);
+                    document.getElementById('detection-feed').src = url;
+                })
+                .catch(error => console.error('Error fetching detection image:', error));
+            }, 1000);
+        }
+        
+        function stopStream() {
+            if (normalInterval) {
+                clearInterval(normalInterval);
+            }
+            
+            if (detectionInterval) {
+                clearInterval(detectionInterval);
+            }
+        }
+    </script>
+</body>
+</html>
