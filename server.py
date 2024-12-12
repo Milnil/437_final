@@ -23,8 +23,8 @@ class CameraSystem:
     def __init__(self, host="192.168.10.59", port=65434):
         logging.info("Initializing CameraSystem class")
         # Initialize Picamera2
-        self.picam2 = Picamera2()
-        self.configure_camera()
+        #self.picam2 = Picamera2()
+        #self.configure_camera()
         
         # Server setup
         self.host = host
