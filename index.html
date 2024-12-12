@@ -4,128 +4,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video and Audio Stream</title>
+    <title>Raspberry Pi MJPEG Stream</title>
     <style>
         body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #333;
-            color: #fff;
-            font-family: Arial, sans-serif;
+            font-family: sans-serif;
+            text-align: center;
+            background: #f0f0f0;
         }
 
-        #video-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+        h1 {
+            margin-top: 50px;
         }
 
-        #videoCanvas {
-            width: 640px;
-            height: 480px;
-            background-color: black;
+        #video {
+            margin-top: 20px;
+            border: 2px solid #333;
+        }
+
+        #instructions {
+            max-width: 600px;
+            margin: 40px auto;
+            text-align: left;
+            background: #fff;
+            padding: 20px;
+            border-radius: 4px;
         }
     </style>
 </head>
 
 <body>
+    <h1>Live Video from Raspberry Pi</h1>
 
-    <div id="video-container">
-        <h1>Live Stream</h1>
-        <canvas id="videoCanvas"></canvas>
-        <div id="status">Connecting...</div>
+    <!-- Displays the MJPEG stream from /video endpoint -->
+    <img id="video" src="/video" alt="Video Stream" />
+
+    <div id="instructions">
+        <h2>Notes:</h2>
+        <p>This video is streamed as MJPEG over HTTP. If you see a live video feed, it's working!</p>
+        <p>Audio is not included in this demonstration. Streaming live audio in a browser requires more complex setups,
+            such as using WebRTC or encoding the audio in a browser-playable format.</p>
     </div>
-
-    <script>
-        const canvas = document.getElementById('videoCanvas');
-        const ctx = canvas.getContext('2d');
-        const statusDiv = document.getElementById('status');
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
-        class StreamClient {
-            constructor() {
-                this.reconnectAttempts = 0;
-                this.maxReconnectAttempts = 5;
-                this.reconnectDelay = 1000; // Start with 1 second
-                this.connect();
-                this.setupAudio();
-            }
-
-            connect() {
-                try {
-                    this.socket = new WebSocket('ws://192.168.10.59:65434');
-                    this.socket.binaryType = 'arraybuffer';
-                    
-                    this.socket.onopen = () => {
-                        statusDiv.textContent = 'Connected';
-                        this.reconnectAttempts = 0;
-                        this.reconnectDelay = 1000;
-                    };
-
-                    this.socket.onmessage = async (event) => {
-                        const data = new Uint8Array(event.data);
-                        const type = data[0];
-                        const content = data.slice(4); // Skip header
-
-                        if (type === 1) { // Video
-                            const blob = new Blob([content], { type: 'image/jpeg' });
-                            const imageBitmap = await createImageBitmap(blob);
-                            ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
-                        } else if (type === 2) { // Audio
-                            this.playAudio(content);
-                        }
-                    };
-
-                    this.socket.onclose = () => {
-                        statusDiv.textContent = 'Disconnected - Reconnecting...';
-                        if (this.reconnectAttempts < this.maxReconnectAttempts) {
-                            this.reconnectAttempts++;
-                            this.reconnectDelay *= 2; // Exponential backoff
-                            setTimeout(() => this.connect(), this.reconnectDelay);
-                        } else {
-                            statusDiv.textContent = 'Connection failed - Please refresh the page';
-                        }
-                    };
-
-                    this.socket.onerror = (error) => {
-                        console.error('WebSocket error:', error);
-                        statusDiv.textContent = 'Connection error';
-                    };
-                } catch (error) {
-                    console.error('Connection error:', error);
-                    statusDiv.textContent = 'Connection error';
-                }
-            }
-
-            setupAudio() {
-                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            }
-
-            async playAudio(audioData) {
-                try {
-                    const audioBuffer = await this.audioContext.decodeAudioData(audioData.buffer);
-                    const source = this.audioContext.createBufferSource();
-                    source.buffer = audioBuffer;
-                    source.connect(this.audioContext.destination);
-                    source.start(0);
-                } catch (error) {
-                    console.error('Audio playback error:', error);
-                }
-            }
-        }
-
-        // Start the client
-        const client = new StreamClient();
-
-        // Cleanup on page unload
-        window.addEventListener('beforeunload', () => {
-            if (client.socket && client.socket.readyState === WebSocket.OPEN) {
-                client.socket.close();
-            }
-        });
-    </script>
 
 </body>
 
