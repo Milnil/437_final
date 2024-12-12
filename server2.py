@@ -8,6 +8,7 @@ import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import os
 import pyaudio
+import ssl
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -15,15 +16,14 @@ logging.basicConfig(
 )
 
 class MJPEGHandler(BaseHTTPRequestHandler):
+    # ... Your existing request handler code ...
     def do_GET(self):
         if self.path == '/video':
+            # Serve MJPEG video as before
             self.send_response(200)
             self.send_header('Content-type', 'multipart/x-mixed-replace; boundary=frame')
             self.end_headers()
-
-            while True:
-                if not self.server.running:
-                    break
+            while self.server.running:
                 frame = self.server.get_frame()
                 if frame is not None:
                     self.wfile.write(b"--frame\r\n")
@@ -32,14 +32,12 @@ class MJPEGHandler(BaseHTTPRequestHandler):
                     self.end_headers()
                     self.wfile.write(frame)
                     self.wfile.write(b"\r\n")
-                time.sleep(0.033)  # ~30fps
+                time.sleep(0.033)
         elif self.path == '/audio':
+            # Serve raw PCM audio
             self.send_response(200)
-            # Send raw binary data
             self.send_header('Content-type', 'application/octet-stream')
             self.end_headers()
-
-            # Continuously send raw PCM audio data
             while self.server.running:
                 audio_data = self.server.get_audio_frame()
                 if audio_data:
@@ -47,7 +45,7 @@ class MJPEGHandler(BaseHTTPRequestHandler):
                 else:
                     time.sleep(0.01)
         else:
-            # Serve files
+            # Serve static files
             if self.path == '/':
                 self.path = '/index.html'
             file_path = '.' + self.path
@@ -69,6 +67,7 @@ class MJPEGHandler(BaseHTTPRequestHandler):
                 self.send_response(404)
                 self.end_headers()
                 self.wfile.write(b"File not found.")
+
 
 class CameraServer(HTTPServer):
     def __init__(self, server_address, RequestHandlerClass):
@@ -139,10 +138,22 @@ class CameraServer(HTTPServer):
         self.pyaudio_instance.terminate()
         super().shutdown()
 
+
 if __name__ == "__main__":
-    server = CameraServer(('0.0.0.0', 8000), MJPEGHandler)
+    # Change the port to 8443 for HTTPS
+    server = CameraServer(('0.0.0.0', 8443), MJPEGHandler)
+
+    # Wrap server socket with SSL
+    server.socket = ssl.wrap_socket(
+        server.socket,
+        keyfile="key.pem",
+        certfile="cert.pem",
+        server_side=True,
+        ssl_version=ssl.PROTOCOL_TLS_SERVER
+    )
+
     try:
-        logging.info("Starting server on http://0.0.0.0:8000")
+        logging.info("Starting server on https://0.0.0.0:8443")
         server.serve_forever()
     except KeyboardInterrupt:
         logging.info("Shutting down...")
