@@ -46,41 +46,57 @@
 
         class StreamClient {
             constructor() {
+                this.reconnectAttempts = 0;
+                this.maxReconnectAttempts = 5;
+                this.reconnectDelay = 1000; // Start with 1 second
                 this.connect();
                 this.setupAudio();
             }
 
             connect() {
-                this.socket = new WebSocket('ws://192.168.10.59:4400');
-                this.socket.binaryType = 'arraybuffer';
+                try {
+                    this.socket = new WebSocket('ws://192.168.10.59:65434');
+                    this.socket.binaryType = 'arraybuffer';
+                    
+                    this.socket.onopen = () => {
+                        statusDiv.textContent = 'Connected';
+                        this.reconnectAttempts = 0;
+                        this.reconnectDelay = 1000;
+                    };
 
-                this.socket.onopen = () => {
-                    statusDiv.textContent = 'Connected';
-                };
+                    this.socket.onmessage = async (event) => {
+                        const data = new Uint8Array(event.data);
+                        const type = data[0];
+                        const content = data.slice(4); // Skip header
 
-                this.socket.onmessage = async (event) => {
-                    const data = new Uint8Array(event.data);
-                    const type = data[0];
-                    const content = data.slice(4); // Skip header
+                        if (type === 1) { // Video
+                            const blob = new Blob([content], { type: 'image/jpeg' });
+                            const imageBitmap = await createImageBitmap(blob);
+                            ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
+                        } else if (type === 2) { // Audio
+                            this.playAudio(content);
+                        }
+                    };
 
-                    if (type === 1) { // Video
-                        const blob = new Blob([content], { type: 'image/jpeg' });
-                        const imageBitmap = await createImageBitmap(blob);
-                        ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
-                    } else if (type === 2) { // Audio
-                        this.playAudio(content);
-                    }
-                };
+                    this.socket.onclose = () => {
+                        statusDiv.textContent = 'Disconnected - Reconnecting...';
+                        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                            this.reconnectAttempts++;
+                            this.reconnectDelay *= 2; // Exponential backoff
+                            setTimeout(() => this.connect(), this.reconnectDelay);
+                        } else {
+                            statusDiv.textContent = 'Connection failed - Please refresh the page';
+                        }
+                    };
 
-                this.socket.onclose = () => {
-                    statusDiv.textContent = 'Disconnected - Reconnecting...';
-                    setTimeout(() => this.connect(), 1000);
-                };
-
-                this.socket.onerror = (error) => {
-                    console.error('WebSocket error:', error);
+                    this.socket.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                        statusDiv.textContent = 'Connection error';
+                    };
+                } catch (error) {
+                    console.error('Connection error:', error);
                     statusDiv.textContent = 'Connection error';
-                };
+                }
             }
 
             setupAudio() {
