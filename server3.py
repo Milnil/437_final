@@ -72,13 +72,11 @@ class CameraServer(HTTPServer):
         self.capture_thread.start()
 
     def configure_camera(self):
-        logging.info("Configuring camera")
-        # Create a configuration suitable for video preview
-        video_config = self.picam2.create_still_configuration(main={"size": (320, 240)})
-        self.picam2.configure(video_config)
-        # Start the camera
+        # Use a preview configuration for a wider field of view
+        config = self.picam2.create_preview_configuration(main={"size": (1280, 720)})
+        self.picam2.configure(config)
         self.picam2.start()
-        logging.info("Camera started")
+
 
     def capture_frames(self):
         while self.running:
