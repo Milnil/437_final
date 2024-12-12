@@ -13,7 +13,7 @@ class CORSHTTPRequestHandler(SimpleHTTPRequestHandler):
         self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
         super().end_headers()
 
-def run_frontend_server(host="192.168.10.59", port=8000):
+def run_frontend_server(host="localhost", port=8000):
     server_address = (host, port)
     httpd = HTTPServer(server_address, CORSHTTPRequestHandler)
     logging.info(f"Frontend server started at http://{host}:{port}")
