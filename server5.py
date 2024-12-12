@@ -56,7 +56,7 @@ class ObjectDetector:
 
 
 class CameraSystem:
-    def __init__(self, host="192.168.10.59", video_port=65434):
+    def __init__(self, host="192.168.10.59", video_port=4400):
         self.host = host
         self.video_port = video_port
         
@@ -87,6 +87,10 @@ class CameraSystem:
         self.server_socket.bind((self.host, self.video_port))
         self.server_socket.listen(5)
         logging.info(f"Server listening on {self.host}:{self.video_port}")
+        
+        # Add a clients set to track active connections
+        self.clients = set()
+        self.clients_lock = threading.Lock()
 
     def configure_camera(self):
         video_config = self.picam2.create_still_configuration(main={"size": (320, 240)})
@@ -118,26 +122,45 @@ class CameraSystem:
 
     def client_handler(self, client_socket, addr):
         logging.info(f"New connection from {addr}")
+        
+        # Add client to active clients
+        with self.clients_lock:
+            self.clients.add(client_socket)
+            
         try:
             while self.running:
-                # Send video frame
-                if not self.video_queue.empty():
-                    frame_data = self.video_queue.get()
-                    # Send frame size first, then frame data
-                    size_data = struct.pack('!I', len(frame_data))
-                    client_socket.sendall(size_data + frame_data)
-                
-                # Send audio data
-                if not self.audio_queue.empty():
-                    audio_data = self.audio_queue.get()
-                    # Send audio size first, then audio data
-                    size_data = struct.pack('!I', len(audio_data))
-                    client_socket.sendall(size_data + audio_data)
-                
+                try:
+                    # Send video frame
+                    if not self.video_queue.empty():
+                        frame_data = self.video_queue.get()
+                        # Send frame size first, then frame data
+                        size_data = struct.pack('!I', len(frame_data))
+                        client_socket.sendall(size_data + frame_data)
+                    
+                    # Send audio data
+                    if not self.audio_queue.empty():
+                        audio_data = self.audio_queue.get()
+                        # Send audio size first, then audio data
+                        size_data = struct.pack('!I', len(audio_data))
+                        client_socket.sendall(size_data + audio_data)
+                    
+                    # Add a small sleep to prevent CPU overload
+                    time.sleep(0.001)
+                    
+                except socket.error as e:
+                    if isinstance(e, BrokenPipeError) or isinstance(e, ConnectionResetError):
+                        logging.info(f"Client {addr} disconnected")
+                        break
+                    logging.error(f"Socket error with client {addr}: {e}")
+                    break
+                    
         except Exception as e:
             logging.error(f"Error handling client {addr}: {e}")
         finally:
-            client_socket.close()
+            # Remove client from active clients
+            with self.clients_lock:
+                self.clients.remove(client_socket)
+                client_socket.close()
             logging.info(f"Connection closed for {addr}")
 
     def start(self):
@@ -152,16 +175,31 @@ class CameraSystem:
         while self.running:
             try:
                 client_socket, addr = self.server_socket.accept()
+                # Set TCP keepalive
+                client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+                # Set socket timeout
+                client_socket.settimeout(10.0)
+                
                 client_thread = threading.Thread(
                     target=self.client_handler,
                     args=(client_socket, addr)
                 )
+                client_thread.daemon = True  # Make thread daemon so it closes with main program
                 client_thread.start()
             except Exception as e:
                 logging.error(f"Error accepting connection: {e}")
 
     def cleanup(self):
         self.running = False
+        # Close all client connections
+        with self.clients_lock:
+            for client_socket in self.clients:
+                try:
+                    client_socket.close()
+                except:
+                    pass
+            self.clients.clear()
+        
         self.picam2.stop()
         self.object_detector.close()
         self.audio_stream.stop_stream()
