@@ -115,7 +115,7 @@ class CameraSystem:
 
 
 async def start_server(camera_system):
-    async with websockets.serve(camera_system.server, "192.168.10.59", 65434):
+    async with websockets.serve(camera_system.server, "192.168.10.59", 4400):
         logging.info("WebSocket server running on ws://192.168.10.59:65434")
         await asyncio.Future()  # Run forever
 
