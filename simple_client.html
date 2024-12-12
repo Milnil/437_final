@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>Messages from Raspberry Pi:</h1>
+    <div id="messages"></div>
+
+    <script>
+        const messagesDiv = document.getElementById('messages');
+        const ws = new WebSocket('ws://192.168.10.59:8765');
+
+        ws.onmessage = function(event) {
+            const p = document.createElement('p');
+            p.textContent = event.data;
+            messagesDiv.appendChild(p);
+            // Keep only the last 5 messages
+            if (messagesDiv.children.length > 5) {
+                messagesDiv.removeChild(messagesDiv.firstChild);
+            }
+        };
+
+        ws.onclose = function() {
+            const p = document.createElement('p');
+            p.textContent = 'Connection closed';
+            p.style.color = 'red';
+            messagesDiv.appendChild(p);
+        };
+    </script>
+</body>
+</html> 
