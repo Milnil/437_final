@@ -73,10 +73,7 @@ class CameraServer(HTTPServer):
 
     def configure_camera(self):
         # Use a preview configuration for a wider field of view
-        config = self.picam2.create_preview_configuration(main={"size": (1280, 720)})
-        sensor_width = 3280
-        sensor_height = 2464
-        self.picam2.set_controls({"ScalerCrop": (0, 0, sensor_width, sensor_height)})
+        config = self.picam2.create_preview_configuration(main={"size": (320, 240)})
         self.picam2.configure(config)
         self.picam2.start()
 
