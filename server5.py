@@ -99,6 +99,8 @@ class CameraSystem:
             logging.error(f"Error in send_video_and_audio: {e}")
 
     async def server(self, websocket, path):
+        logging.info(f"WebSocket path received: {path}")
+
         try:
             await self.send_video_and_audio(websocket)
         except Exception as e:
