@@ -70,8 +70,8 @@
         <h2>Notes:</h2>
         <p>This page shows an MJPEG video and uses the deprecated ScriptProcessorNode to play raw PCM audio in near
             real-time.</p>
-        <p>If you see a deprecation warning in the console, that's expected. This approach may be less future-proof, but
-            often easier to set up without secure contexts.</p>
+        <p>We have added console logs to verify that audio data is being received. Check your browser's JavaScript
+            console for messages.</p>
         <p>Click anywhere on the page to start the audio (autoplay policies may require a user interaction).</p>
     </div>
 
@@ -88,11 +88,13 @@
         muteButton.addEventListener('click', () => {
             muted = !muted;
             muteButton.textContent = muted ? 'Unmute' : 'Mute';
+            console.log(`Audio is now ${muted ? 'muted' : 'unmuted'}.`);
         });
 
         async function startAudio() {
             if (!audioContext) {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
+                console.log("Created new AudioContext with sampleRate:", sampleRate);
             }
 
             processor = audioContext.createScriptProcessor(4096, 0, channels);
@@ -106,6 +108,9 @@
                 if (muted || buffer.length < neededBytes) {
                     // Not enough data or muted, fill with silence
                     output.fill(0);
+                    if (!muted && buffer.length < neededBytes) {
+                        console.log(`Not enough data to fill audio buffer (have ${buffer.length} bytes, need ${neededBytes} bytes).`);
+                    }
                     return;
                 }
 
@@ -121,23 +126,30 @@
             };
 
             // Start fetching audio data
+            console.log("Fetching audio data from /audio...");
             const response = await fetch('/audio');
             if (!response.ok) {
                 console.error('Failed to fetch audio stream');
                 return;
             }
+            console.log("Successfully connected to /audio stream.");
 
             const reader = response.body.getReader();
 
             while (true) {
                 const { value, done } = await reader.read();
-                if (done) break;
+                if (done) {
+                    console.log("Audio stream ended.");
+                    break;
+                }
                 if (value) {
+                    console.log(`Received audio data chunk of length: ${value.length} bytes`);
                     // Append new data
                     let newBuffer = new Uint8Array(buffer.length + value.length);
                     newBuffer.set(buffer, 0);
                     newBuffer.set(value, buffer.length);
                     buffer = newBuffer;
+                    console.log(`Buffer size after appending: ${buffer.length} bytes`);
                 }
             }
         }
@@ -145,6 +157,7 @@
         // Start audio on user interaction (autoplay policy)
         document.addEventListener('click', () => {
             if (!audioContext || audioContext.state !== 'running') {
+                console.log("User clicked on the page. Starting audio...");
                 startAudio();
             }
         }, { once: true });
