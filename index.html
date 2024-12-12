@@ -22,7 +22,7 @@
             align-items: center;
         }
 
-        video {
+        #videoCanvas {
             width: 640px;
             height: 480px;
             background-color: black;
@@ -33,16 +33,18 @@
 <body>
 
     <div id="video-container">
-        <h1>Live Video and Audio Stream</h1>
-        <video id="videoElement" autoplay></video>
+        <h1>Live Stream</h1>
+        <canvas id="videoCanvas"></canvas>
+        <div id="status">Connecting...</div>
     </div>
 
     <script>
-        const videoElement = document.getElementById('videoElement');
+        const canvas = document.getElementById('videoCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusDiv = document.getElementById('status');
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        let audioSource;
-        console.log("HERE2")
 
+<<<<<<< HEAD
         const socket = new WebSocket('ws://192.168.10.59:65434');
         console.log("HERE")
         socket.binaryType = 'arraybuffer';
@@ -63,24 +65,71 @@
                     source.connect(audioContext.destination);
                     source.start(0);
                 });
+=======
+        class StreamClient {
+            constructor() {
+                this.connect();
+                this.setupAudio();
+>>>>>>> b7afdffd030f770a8d51b9c2cf5b74a9a4679f73
             }
-        };
 
-        socket.onopen = function () {
-            console.log('Connected to the server at ws://192.168.10.59:65434');
-        };
+            connect() {
+                this.socket = new WebSocket('ws://192.168.10.59:65434');
+                this.socket.binaryType = 'arraybuffer';
+                
+                this.socket.onopen = () => {
+                    statusDiv.textContent = 'Connected';
+                };
 
-        socket.onerror = function (error) {
-            console.error('WebSocket error:', error);
-        };
+                this.socket.onmessage = async (event) => {
+                    const data = new Uint8Array(event.data);
+                    const type = data[0];
+                    const content = data.slice(4); // Skip header
 
-        socket.onclose = function () {
-            console.log('WebSocket connection closed');
-        };
+                    if (type === 1) { // Video
+                        const blob = new Blob([content], { type: 'image/jpeg' });
+                        const imageBitmap = await createImageBitmap(blob);
+                        ctx.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
+                    } else if (type === 2) { // Audio
+                        this.playAudio(content);
+                    }
+                };
 
-        window.addEventListener('beforeunload', function() {
-            if (socket && socket.readyState === WebSocket.OPEN) {
-                socket.close();
+                this.socket.onclose = () => {
+                    statusDiv.textContent = 'Disconnected - Reconnecting...';
+                    setTimeout(() => this.connect(), 1000);
+                };
+
+                this.socket.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    statusDiv.textContent = 'Connection error';
+                };
+            }
+
+            setupAudio() {
+                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            async playAudio(audioData) {
+                try {
+                    const audioBuffer = await this.audioContext.decodeAudioData(audioData.buffer);
+                    const source = this.audioContext.createBufferSource();
+                    source.buffer = audioBuffer;
+                    source.connect(this.audioContext.destination);
+                    source.start(0);
+                } catch (error) {
+                    console.error('Audio playback error:', error);
+                }
+            }
+        }
+
+        // Start the client
+        const client = new StreamClient();
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (client.socket && client.socket.readyState === WebSocket.OPEN) {
+                client.socket.close();
             }
         });
     </script>
