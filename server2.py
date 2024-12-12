@@ -120,6 +120,20 @@ class CameraSystem:
         self.picam2.start()
         logging.info("Camera started")
 
+    def capture_image(self):
+        logging.debug("Capturing image")
+        try:
+            image = self.picam2.capture_array()
+            img = Image.fromarray(image)
+            img_byte_arr = io.BytesIO()
+            img.save(img_byte_arr, format='JPEG')
+            image_bytes = img_byte_arr.getvalue()
+            logging.debug(f"Image captured, size: {len(image_bytes)} bytes")
+            return image_bytes, image
+        except Exception as e:
+            logging.error(f"Error capturing image: {e}")
+            return None, None
+
     def capture_audio(self):
         logging.debug("Capturing audio")
         try:
@@ -150,7 +164,7 @@ class CameraSystem:
         while True:
             audio_bytes = self.capture_audio()
             image_bytes, _ = self.capture_image()
-            
+
         while inputs:
             try:
                 readable, _, _ = select.select(inputs, [], inputs, 0.1)
