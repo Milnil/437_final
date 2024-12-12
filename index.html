@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Raspberry Pi MJPEG + PCM Audio (Worklet)</title>
+    <title>Raspberry Pi MJPEG + PCM Audio (ScriptProcessorNode)</title>
     <style>
         body {
             font-family: sans-serif;
@@ -68,9 +68,11 @@
 
     <div id="instructions">
         <h2>Notes:</h2>
-        <p>If you see an error related to AudioWorklet, ensure you are on a supported browser and accessing the page via
-            HTTP/HTTPS (not a file URL), and preferably using Chrome or a modern browser. Localhost or HTTPS is required
-            for AudioWorklets.</p>
+        <p>This page shows an MJPEG video and uses the deprecated ScriptProcessorNode to play raw PCM audio in near
+            real-time.</p>
+        <p>If you see a deprecation warning in the console, that's expected. This approach may be less future-proof, but
+            often easier to set up without secure contexts.</p>
+        <p>Click anywhere on the page to start the audio (autoplay policies may require a user interaction).</p>
     </div>
 
     <script>
@@ -78,16 +80,14 @@
         const channels = 1;
         const bytesPerSample = 2; // 16-bit PCM
         let audioContext;
-        let workletNode;
+        let processor;
         let muted = false;
+        let buffer = new Uint8Array(0);
 
         const muteButton = document.getElementById('muteButton');
         muteButton.addEventListener('click', () => {
             muted = !muted;
             muteButton.textContent = muted ? 'Unmute' : 'Mute';
-            if (workletNode) {
-                workletNode.port.postMessage({ type: 'mute', value: muted });
-            }
         });
 
         async function startAudio() {
@@ -95,24 +95,32 @@
                 audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
             }
 
-            if (!audioContext.audioWorklet) {
-                console.error("AudioWorklet is not supported in this browser or context.");
-                return;
-            }
+            processor = audioContext.createScriptProcessor(4096, 0, channels);
+            processor.connect(audioContext.destination);
 
-            try {
-                await audioContext.audioWorklet.addModule('worklet.js');
-            } catch (e) {
-                console.error("Failed to load worklet module:", e);
-                return;
-            }
+            processor.onaudioprocess = (audioEvent) => {
+                let output = audioEvent.outputBuffer.getChannelData(0);
+                let neededSamples = output.length;
+                let neededBytes = neededSamples * bytesPerSample;
 
-            workletNode = new AudioWorkletNode(audioContext, 'pcm-player');
-            workletNode.connect(audioContext.destination);
+                if (muted || buffer.length < neededBytes) {
+                    // Not enough data or muted, fill with silence
+                    output.fill(0);
+                    return;
+                }
 
-            // Send initial mute state
-            workletNode.port.postMessage({ type: 'mute', value: muted });
+                // Extract needed bytes from buffer
+                const chunk = buffer.slice(0, neededBytes);
+                buffer = buffer.slice(neededBytes);
 
+                const dataView = new DataView(chunk.buffer);
+                for (let i = 0; i < neededSamples; i++) {
+                    let sample = dataView.getInt16(i * 2, true);
+                    output[i] = sample / 32768.0;
+                }
+            };
+
+            // Start fetching audio data
             const response = await fetch('/audio');
             if (!response.ok) {
                 console.error('Failed to fetch audio stream');
@@ -125,18 +133,16 @@
                 const { value, done } = await reader.read();
                 if (done) break;
                 if (value) {
-                    const dataView = new DataView(value.buffer);
-                    const floatData = new Float32Array(value.length / 2);
-                    for (let i = 0; i < floatData.length; i++) {
-                        let sample = dataView.getInt16(i * 2, true);
-                        floatData[i] = sample / 32768.0;
-                    }
-
-                    workletNode.port.postMessage({ type: 'audio', samples: floatData });
+                    // Append new data
+                    let newBuffer = new Uint8Array(buffer.length + value.length);
+                    newBuffer.set(buffer, 0);
+                    newBuffer.set(value, buffer.length);
+                    buffer = newBuffer;
                 }
             }
         }
 
+        // Start audio on user interaction (autoplay policy)
         document.addEventListener('click', () => {
             if (!audioContext || audioContext.state !== 'running') {
                 startAudio();
