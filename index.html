@@ -41,9 +41,10 @@
         const videoElement = document.getElementById('videoElement');
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         let audioSource;
+        console.log("HERE2")
 
-        const socket = new WebSocket('ws://192.168.10.59:65434');
-
+        const socket = new WebSocket('ws://192.168.10.59:65434/video-stream');
+        console.log("HERE")
         socket.binaryType = 'arraybuffer';
 
         socket.onmessage = function (event) {

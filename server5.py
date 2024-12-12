@@ -94,6 +94,8 @@ class CameraSystem:
             await websocket.send(b'\x02' + audio_bytes)  # Prefix \x02 to indicate audio frame
 
     async def server(self, websocket, path):
+        logging.info(f"WebSocket path received: {path}")
+
         try:
             await self.send_video_and_audio(websocket)
         except Exception as e:
