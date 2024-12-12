@@ -14,6 +14,7 @@ from mediapipe.tasks.python import vision
 import threading
 import json
 import struct
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -56,7 +57,7 @@ class ObjectDetector:
 
 
 class CameraSystem:
-    def __init__(self, host="192.168.10.59", video_port=4400):
+    def __init__(self, host="192.168.10.59", video_port=65434):
         self.host = host
         self.video_port = video_port
         
@@ -91,6 +92,10 @@ class CameraSystem:
         # Add a clients set to track active connections
         self.clients = set()
         self.clients_lock = threading.Lock()
+        
+        # Add HTTP server for serving the webpage
+        self.http_server = HTTPServer((host, 8000), SimpleHTTPRequestHandler)
+        logging.info(f"HTTP server started at http://{host}:8000")
 
     def configure_camera(self):
         video_config = self.picam2.create_still_configuration(main={"size": (320, 240)})
@@ -164,6 +169,11 @@ class CameraSystem:
             logging.info(f"Connection closed for {addr}")
 
     def start(self):
+        # Start HTTP server in a separate thread
+        http_thread = threading.Thread(target=self.http_server.serve_forever)
+        http_thread.daemon = True
+        http_thread.start()
+        
         # Start capture threads
         self.video_thread = threading.Thread(target=self.capture_video_thread)
         self.audio_thread = threading.Thread(target=self.capture_audio_thread)
@@ -206,6 +216,7 @@ class CameraSystem:
         self.audio_stream.close()
         self.audio.terminate()
         self.server_socket.close()
+        self.http_server.shutdown()
 
 if __name__ == "__main__":
     camera_system = CameraSystem()
