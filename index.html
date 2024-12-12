@@ -51,9 +51,9 @@
             }
 
             connect() {
-                this.socket = new WebSocket('ws://192.168.10.59:65434');
+                this.socket = new WebSocket('ws://192.168.10.59:4400');
                 this.socket.binaryType = 'arraybuffer';
-                
+
                 this.socket.onopen = () => {
                     statusDiv.textContent = 'Connected';
                 };
