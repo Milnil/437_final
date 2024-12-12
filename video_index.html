@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Raspberry Pi MJPEG Stream</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            background: #f0f0f0;
+        }
+
+        h1 {
+            margin-top: 50px;
+        }
+
+        #video {
+            margin-top: 20px;
+            border: 2px solid #333;
+        }
+
+        #instructions {
+            max-width: 600px;
+            margin: 40px auto;
+            text-align: left;
+            background: #fff;
+            padding: 20px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Live Video from Raspberry Pi</h1>
+
+    <!-- Displays the MJPEG stream from /video endpoint -->
+    <img id="video" src="/video" alt="Video Stream" />
+
+    <div id="instructions">
+        <h2>Notes:</h2>
+        <p>This video is streamed as MJPEG over HTTP. If you see a live video feed, it's working!</p>
+        <p>Audio is not included in this demonstration. Streaming live audio in a browser requires more complex setups,
+            such as using WebRTC or encoding the audio in a browser-playable format.</p>
+    </div>
+
+</body>
+
+</html>

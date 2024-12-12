@@ -68,11 +68,9 @@
 
     <div id="instructions">
         <h2>Notes:</h2>
-        <p>This page shows an MJPEG video and uses the Web Audio API with an AudioWorkletNode to play raw PCM audio in
-            real-time.</p>
-        <p>Click anywhere on the page to start the audio context if it's not running. The mute button toggles audio
-            output in real-time.</p>
-        <p>This approach is more modern and stable than the deprecated ScriptProcessorNode.</p>
+        <p>If you see an error related to AudioWorklet, ensure you are on a supported browser and accessing the page via
+            HTTP/HTTPS (not a file URL), and preferably using Chrome or a modern browser. Localhost or HTTPS is required
+            for AudioWorklets.</p>
     </div>
 
     <script>
@@ -97,15 +95,24 @@
                 audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
             }
 
-            // Load the audio worklet processor
-            await audioContext.audioWorklet.addModule('worklet.js');
+            if (!audioContext.audioWorklet) {
+                console.error("AudioWorklet is not supported in this browser or context.");
+                return;
+            }
+
+            try {
+                await audioContext.audioWorklet.addModule('worklet.js');
+            } catch (e) {
+                console.error("Failed to load worklet module:", e);
+                return;
+            }
+
             workletNode = new AudioWorkletNode(audioContext, 'pcm-player');
             workletNode.connect(audioContext.destination);
 
             // Send initial mute state
             workletNode.port.postMessage({ type: 'mute', value: muted });
 
-            // Start fetching audio data
             const response = await fetch('/audio');
             if (!response.ok) {
                 console.error('Failed to fetch audio stream');
@@ -118,7 +125,6 @@
                 const { value, done } = await reader.read();
                 if (done) break;
                 if (value) {
-                    // Convert Int16 PCM to Float32
                     const dataView = new DataView(value.buffer);
                     const floatData = new Float32Array(value.length / 2);
                     for (let i = 0; i < floatData.length; i++) {
@@ -126,13 +132,11 @@
                         floatData[i] = sample / 32768.0;
                     }
 
-                    // Send to the audio worklet
                     workletNode.port.postMessage({ type: 'audio', samples: floatData });
                 }
             }
         }
 
-        // Start audio on user interaction to comply with autoplay policies.
         document.addEventListener('click', () => {
             if (!audioContext || audioContext.state !== 'running') {
                 startAudio();
