@@ -23,7 +23,6 @@ class MJPEGHandler(BaseHTTPRequestHandler):
             self.send_header('Content-type', 'multipart/x-mixed-replace; boundary=frame')
             self.end_headers()
 
-            # Continuously capture frames and send them as a multipart MJPEG stream
             while True:
                 if not self.server.running:
                     break
@@ -73,15 +72,17 @@ class CameraServer(HTTPServer):
         self.capture_thread.start()
 
     def configure_camera(self):
-        # Low resolution example, you can adjust as needed
-        config = self.picam2.create_still_configuration(main={"size": (320, 240)})
+        # Increase resolution here
+        config = self.picam2.create_still_configuration(main={"size": (1280, 720)})
         self.picam2.configure(config)
         self.picam2.start()
 
     def capture_frames(self):
         while self.running:
             image = self.picam2.capture_array()
-            ret, jpeg = cv2.imencode('.jpg', image)
+            # Increase JPEG quality here (from default ~95 to something like 90, 
+            # adjust as needed)
+            ret, jpeg = cv2.imencode('.jpg', image, [cv2.IMWRITE_JPEG_QUALITY, 90])
             if ret:
                 with self.lock:
                     self.frame = jpeg.tobytes()
