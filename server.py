@@ -7,7 +7,11 @@ import socket
 import select
 import queue
 import time
+import pyaudio  # Import pyaudio for audio capture
+import numpy as np
+
 from object_detector import ObjectDetector  # Import the object detection class
+
 
 # Configure logging
 logging.basicConfig(
@@ -32,28 +36,34 @@ class CameraSystem:
         
         # Object detector initialization
         self.object_detector = ObjectDetector()
+        
+        # Audio stream setup
+        self.audio = pyaudio.PyAudio()
+        self.audio_stream = self.audio.open(
+            format=pyaudio.paInt16,
+            channels=1,
+            rate=16000,
+            input=True,
+            frames_per_buffer=1024
+        )
 
     def configure_camera(self):
         logging.info("Configuring camera")
-        # Create a configuration suitable for video preview
         video_config = self.picam2.create_still_configuration(main={"size": (320, 240)})
         self.picam2.configure(video_config)
-        # Start the camera
         self.picam2.start()
         logging.info("Camera started")
 
     def capture_image(self):
-        # Capture image using Picamera2
         logging.debug("Capturing image")
         try:
             image = self.picam2.capture_array()
-            # Convert the image array to JPEG bytes
             img = Image.fromarray(image)
             img_byte_arr = io.BytesIO()
             img.save(img_byte_arr, format='JPEG')
             image_bytes = img_byte_arr.getvalue()
             logging.debug(f"Image captured, size: {len(image_bytes)} bytes")
-            return image_bytes, image  # Return both the raw bytes and the image array
+            return image_bytes, image
         except Exception as e:
             logging.error(f"Error capturing image: {e}")
             return None, None
@@ -65,7 +75,6 @@ class CameraSystem:
             if image is not None:
                 detection_result = self.object_detector.detect_objects_from_image(image)
                 detected_image = self.object_detector.visualize(image, detection_result)
-                # Convert the image array to JPEG bytes
                 img = Image.fromarray(detected_image)
                 img_byte_arr = io.BytesIO()
                 img.save(img_byte_arr, format='JPEG')
@@ -77,11 +86,29 @@ class CameraSystem:
             logging.error(f"Error capturing and detecting objects in image: {e}")
             return None, None
 
+    def capture_audio(self):
+        logging.debug("Capturing audio")
+        try:
+            audio_frames = self.audio_stream.read(1024)
+            logging.debug(f"Audio captured, size: {len(audio_frames)} bytes")
+            audio_array = np.frombuffer(audio_frames, dtype=np.int16)
+            rms = np.sqrt(np.mean(audio_array**2))
+            peak = np.max(np.abs(audio_array))
+            logging.debug(f"Audio captured, size: {len(audio_frames)} bytes, RMS: {rms:.2f}, Peak: {peak}")
+
+            return audio_frames
+        except Exception as e:
+            logging.error(f"Error capturing audio: {e}")
+            return None
+
     def cleanup(self):
-        logging.info("Cleaning up camera resources")
+        logging.info("Cleaning up camera and audio resources")
         self.picam2.stop()
         self.object_detector.close()
-        logging.info("Camera cleanup complete")
+        self.audio_stream.stop_stream()
+        self.audio_stream.close()
+        self.audio.terminate()
+        logging.info("Camera and audio cleanup complete")
 
     def run(self):
         logging.info("Starting server run loop")
@@ -92,9 +119,7 @@ class CameraSystem:
 
         while inputs:
             try:
-                readable, writable, exceptional = select.select(
-                    inputs, outputs, inputs, 0.1
-                )
+                readable, writable, exceptional = select.select(inputs, outputs, inputs, 0.1)
             except Exception as e:
                 logging.error(f"Select error: {e}")
                 break
@@ -119,6 +144,10 @@ class CameraSystem:
                                 _, detected_image_bytes = self.capture_and_detect_objects()
                                 if detected_image_bytes:
                                     message_queues[s].put(detected_image_bytes)
+                            elif data == "capture_audio":
+                                audio_bytes = self.capture_audio()
+                                if audio_bytes:
+                                    message_queues[s].put(audio_bytes)
                         else:
                             logging.info(f"Client disconnected: {s.getpeername()}")
                             if s in outputs:
@@ -161,7 +190,6 @@ class CameraSystem:
 
         self.cleanup()
 
-# Main program logic follows:
 if __name__ == "__main__":
     logging.info("Program is starting...")
     camera_system = CameraSystem()
