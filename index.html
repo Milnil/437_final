@@ -44,39 +44,16 @@
         const statusDiv = document.getElementById('status');
         const audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
-<<<<<<< HEAD
-        const socket = new WebSocket('ws://192.168.10.59:65434');
-        console.log("HERE")
-        socket.binaryType = 'arraybuffer';
-
-        socket.onmessage = function (event) {
-            const data = new DataView(event.data);
-            const type = data.getUint8(0);
-
-            if (type === 1) {  // Video frame
-                const blob = new Blob([event.data.slice(1)], { type: 'image/jpeg' });
-                const url = URL.createObjectURL(blob);
-                videoElement.src = url;
-            } else if (type === 2) {  // Audio frame
-                const audioBuffer = event.data.slice(1);
-                audioContext.decodeAudioData(audioBuffer, function (buffer) {
-                    const source = audioContext.createBufferSource();
-                    source.buffer = buffer;
-                    source.connect(audioContext.destination);
-                    source.start(0);
-                });
-=======
         class StreamClient {
             constructor() {
                 this.connect();
                 this.setupAudio();
->>>>>>> b7afdffd030f770a8d51b9c2cf5b74a9a4679f73
             }
 
             connect() {
-                this.socket = new WebSocket('ws://192.168.10.59:65434');
+                this.socket = new WebSocket('ws://192.168.10.59:4400');
                 this.socket.binaryType = 'arraybuffer';
-                
+
                 this.socket.onopen = () => {
                     statusDiv.textContent = 'Connected';
                 };
