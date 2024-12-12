@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Raspberry Pi MJPEG + PCM Audio</title>
+    <title>Raspberry Pi MJPEG + PCM Audio (Worklet)</title>
     <style>
         body {
             font-family: sans-serif;
@@ -68,51 +68,44 @@
 
     <div id="instructions">
         <h2>Notes:</h2>
-        <p>This page shows an MJPEG video and uses the Web Audio API to play raw PCM audio from the Raspberry Pi in
+        <p>This page shows an MJPEG video and uses the Web Audio API with an AudioWorkletNode to play raw PCM audio in
             real-time.</p>
-        <p>If the audio is not heard, ensure that your browser supports the required features and that you've allowed
-            autoplay (or interacted with the page to allow sound).</p>
+        <p>Click anywhere on the page to start the audio context if it's not running. The mute button toggles audio
+            output in real-time.</p>
+        <p>This approach is more modern and stable than the deprecated ScriptProcessorNode.</p>
     </div>
 
     <script>
-        // Audio settings must match the server
         const sampleRate = 16000;
         const channels = 1;
         const bytesPerSample = 2; // 16-bit PCM
         let audioContext;
-        let sourceNode;
-        let processor;
-        let audioStreamPaused = false;
+        let workletNode;
         let muted = false;
 
         const muteButton = document.getElementById('muteButton');
         muteButton.addEventListener('click', () => {
             muted = !muted;
-            if (muted) {
-                muteButton.textContent = 'Unmute';
-            } else {
-                muteButton.textContent = 'Mute';
+            muteButton.textContent = muted ? 'Unmute' : 'Mute';
+            if (workletNode) {
+                workletNode.port.postMessage({ type: 'mute', value: muted });
             }
         });
 
         async function startAudio() {
-            // Create AudioContext once user interacts (for autoplay policies)
             if (!audioContext) {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
             }
 
-            // Create a ScriptProcessorNode
-            // Note: ScriptProcessorNode is deprecated, but still widely supported.
-            // A more modern approach would use an AudioWorkletNode.
-            processor = audioContext.createScriptProcessor(4096, 0, channels);
-            processor.onaudioprocess = (audioEvent) => {
-                // We'll fill this with PCM data from the stream.
-                // This callback is driven by the audio system pulling data from the node.
-            };
+            // Load the audio worklet processor
+            await audioContext.audioWorklet.addModule('worklet.js');
+            workletNode = new AudioWorkletNode(audioContext, 'pcm-player');
+            workletNode.connect(audioContext.destination);
 
-            processor.connect(audioContext.destination);
+            // Send initial mute state
+            workletNode.port.postMessage({ type: 'mute', value: muted });
 
-            // Fetch and stream audio data
+            // Start fetching audio data
             const response = await fetch('/audio');
             if (!response.ok) {
                 console.error('Failed to fetch audio stream');
@@ -121,50 +114,20 @@
 
             const reader = response.body.getReader();
 
-            let buffer = new Uint8Array(0);
-
-            // We'll push data from the network into the audio node when needed.
-            processor.onaudioprocess = (audioEvent) => {
-                if (muted || audioStreamPaused) {
-                    // Fill with silence
-                    let output = audioEvent.outputBuffer.getChannelData(0);
-                    output.fill(0);
-                    return;
-                }
-
-                let output = audioEvent.outputBuffer.getChannelData(0);
-                let neededSamples = output.length; // Float32 samples
-                let neededBytes = neededSamples * bytesPerSample;
-
-                // Ensure we have enough data in buffer
-                if (buffer.length < neededBytes) {
-                    // Not enough data available yet, fill with silence
-                    output.fill(0);
-                    return;
-                }
-
-                // Extract neededBytes from buffer
-                const chunk = buffer.slice(0, neededBytes);
-                buffer = buffer.slice(neededBytes);
-
-                // Convert from 16-bit PCM to float
-                const dataView = new DataView(chunk.buffer);
-                for (let i = 0; i < neededSamples; i++) {
-                    let sample = dataView.getInt16(i * 2, true);
-                    output[i] = sample / 32768.0;
-                }
-            };
-
-            // Continuously read data from the stream and append to our buffer
             while (true) {
                 const { value, done } = await reader.read();
                 if (done) break;
                 if (value) {
-                    // Append new data
-                    let newBuffer = new Uint8Array(buffer.length + value.length);
-                    newBuffer.set(buffer, 0);
-                    newBuffer.set(value, buffer.length);
-                    buffer = newBuffer;
+                    // Convert Int16 PCM to Float32
+                    const dataView = new DataView(value.buffer);
+                    const floatData = new Float32Array(value.length / 2);
+                    for (let i = 0; i < floatData.length; i++) {
+                        let sample = dataView.getInt16(i * 2, true);
+                        floatData[i] = sample / 32768.0;
+                    }
+
+                    // Send to the audio worklet
+                    workletNode.port.postMessage({ type: 'audio', samples: floatData });
                 }
             }
         }
