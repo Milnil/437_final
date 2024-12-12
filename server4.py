@@ -12,6 +12,7 @@ import numpy as np  # Import numpy to process audio values
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+import threading  # Import threading for multi-threaded execution
 
 # Configure logging
 logging.basicConfig(
@@ -118,9 +119,6 @@ class CameraSystem:
             rate=16000,
             output=True
         )
-        
-        # Pre-load audio buffer
-        self.preload_audio_buffer()
 
     def configure_camera(self):
         logging.info("Configuring camera")
@@ -128,15 +126,6 @@ class CameraSystem:
         self.picam2.configure(video_config)
         self.picam2.start()
         logging.info("Camera started")
-
-    def preload_audio_buffer(self):
-        logging.info("Pre-loading audio buffer")
-        for _ in range(5):  # Preload 5 frames of audio
-            try:
-                audio_frames = self.audio_stream.read(1024)
-                self.audio_output_stream.write(audio_frames)
-            except Exception as e:
-                logging.error(f"Error pre-loading audio buffer: {e}")
 
     def capture_image(self):
         logging.debug("Capturing image")
@@ -166,6 +155,21 @@ class CameraSystem:
             logging.error(f"Error capturing audio: {e}")
             return None
 
+    def audio_thread(self):
+        while True:
+            self.capture_audio()
+
+    def camera_thread(self):
+        while True:
+            self.capture_image()
+
+    def start_threads(self):
+        logging.info("Starting camera and audio threads")
+        camera_thread = threading.Thread(target=self.camera_thread)
+        audio_thread = threading.Thread(target=self.audio_thread)
+        camera_thread.start()
+        audio_thread.start()
+
     def cleanup(self):
         logging.info("Cleaning up resources")
         self.picam2.stop()
@@ -177,34 +181,11 @@ class CameraSystem:
         self.audio.terminate()
         logging.info("Cleanup complete")
 
-    def run(self):
-        logging.info("Starting server run loop")
-        self.server_socket.setblocking(False)
-        inputs = [self.server_socket]
-        message_queues = {}
-        while True:
-            audio_bytes = self.capture_audio()
-            image_bytes, _ = self.capture_image()
-
-        while inputs:
-            try:
-                readable, _, _ = select.select(inputs, [], inputs, 0.1)
-            except Exception as e:
-                logging.error(f"Select error: {e}")
-                break
-            for s in readable:
-                if s is self.server_socket:
-                    client_socket, client_address = s.accept()
-                    client_socket.setblocking(False)
-                    inputs.append(client_socket)
-                    message_queues[client_socket] = queue.Queue()
-        self.cleanup()
-
 if __name__ == "__main__":
     logging.info("Program is starting...")
     camera_system = CameraSystem()
     try:
-        camera_system.run()
+        camera_system.start_threads()
     except KeyboardInterrupt:
         logging.info("KeyboardInterrupt caught, exiting program")
         camera_system.cleanup()
