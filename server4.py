@@ -176,3 +176,35 @@ class CameraSystem:
         self.audio_output_stream.close()
         self.audio.terminate()
         logging.info("Cleanup complete")
+
+    def run(self):
+        logging.info("Starting server run loop")
+        self.server_socket.setblocking(False)
+        inputs = [self.server_socket]
+        message_queues = {}
+        while True:
+            audio_bytes = self.capture_audio()
+            image_bytes, _ = self.capture_image()
+
+        while inputs:
+            try:
+                readable, _, _ = select.select(inputs, [], inputs, 0.1)
+            except Exception as e:
+                logging.error(f"Select error: {e}")
+                break
+            for s in readable:
+                if s is self.server_socket:
+                    client_socket, client_address = s.accept()
+                    client_socket.setblocking(False)
+                    inputs.append(client_socket)
+                    message_queues[client_socket] = queue.Queue()
+        self.cleanup()
+
+if __name__ == "__main__":
+    logging.info("Program is starting...")
+    camera_system = CameraSystem()
+    try:
+        camera_system.run()
+    except KeyboardInterrupt:
+        logging.info("KeyboardInterrupt caught, exiting program")
+        camera_system.cleanup()
