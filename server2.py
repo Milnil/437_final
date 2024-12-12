@@ -120,6 +120,19 @@ class CameraSystem:
         self.picam2.start()
         logging.info("Camera started")
 
+    def capture_audio(self):
+        logging.debug("Capturing audio")
+        try:
+            audio_frames = self.audio_stream.read(1024)
+            audio_array = np.frombuffer(audio_frames, dtype=np.int16)
+            rms = np.sqrt(np.mean(audio_array**2))
+            peak = np.max(np.abs(audio_array))
+            logging.debug(f"Audio captured, size: {len(audio_frames)} bytes, RMS: {rms:.2f}, Peak: {peak}")
+            return audio_frames
+        except Exception as e:
+            logging.error(f"Error capturing audio: {e}")
+            return None
+
     def cleanup(self):
         logging.info("Cleaning up resources")
         self.picam2.stop()
@@ -134,6 +147,10 @@ class CameraSystem:
         self.server_socket.setblocking(False)
         inputs = [self.server_socket]
         message_queues = {}
+        while True:
+            audio_bytes = self.capture_audio()
+            image_bytes, _ = self.capture_image()
+            
         while inputs:
             try:
                 readable, _, _ = select.select(inputs, [], inputs, 0.1)
@@ -153,10 +170,15 @@ class CameraSystem:
                             image_bytes, _ = self.capture_image()
                             if image_bytes:
                                 message_queues[s].put(image_bytes)
+                            
                         elif data == "capture_with_detection":
                             _, detected_image_bytes = self.capture_and_detect_objects()
                             if detected_image_bytes:
                                 message_queues[s].put(detected_image_bytes)
+                        elif data == "capture_audio":
+                            audio_bytes = self.capture_audio()
+                            if audio_bytes:
+                                message_queues[s].put(audio_bytes)
                     except Exception as e:
                         logging.error(f"Error handling client data: {e}")
                         inputs.remove(s)
