@@ -56,7 +56,7 @@ class ObjectDetector:
 
 
 class CameraSystem:
-    def __init__(self, host="192.168.10.59", video_port=65434):
+    def __init__(self, host="192.168.10.59", video_port=4400):
         self.host = host
         self.video_port = video_port
         
