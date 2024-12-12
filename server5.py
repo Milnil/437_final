@@ -28,13 +28,20 @@ class ObjectDetector:
         self.score_threshold = score_threshold
 
         base_options = python.BaseOptions(model_asset_path=self.model_path)
+        
         options = vision.ObjectDetectorOptions(
             base_options=base_options,
             running_mode=vision.RunningMode.LIVE_STREAM,
             max_results=self.max_results,
-            score_threshold=self.score_threshold
+            score_threshold=self.score_threshold,
+            result_callback=self.save_result  # Provide the result callback
         )
         self.detector = vision.ObjectDetector.create_from_options(options)
+
+    def save_result(self, result: vision.ObjectDetectorResult, unused_output_image: mp.Image, timestamp_ms: int):
+        """Callback to handle detection results from the live stream."""
+        logging.info(f"Detection result received at {timestamp_ms} ms")
+        self.detection_result_list.append(result)
 
     def detect_objects_from_image(self, image):
         try:
