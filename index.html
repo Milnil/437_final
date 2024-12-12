@@ -1,121 +1,83 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Camera System Viewer</title>
+    <title>Video and Audio Stream</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f9;
-            color: #333;
-            text-align: center;
-            padding: 20px;
-        }
-        
-        h1 {
-            margin-bottom: 20px;
-        }
-        
-        .video-container {
             display: flex;
             justify-content: center;
-            gap: 20px;
-        }
-        
-        .video-feed {
-            border: 2px solid #333;
-            border-radius: 8px;
-            width: 320px;
-            height: 240px;
-            overflow: hidden;
-        }
-        
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            margin-top: 20px;
-            cursor: pointer;
+            align-items: center;
+            height: 100vh;
             background-color: #333;
             color: #fff;
-            border: none;
-            border-radius: 5px;
+            font-family: Arial, sans-serif;
         }
-        
-        button:hover {
-            background-color: #555;
+
+        #video-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        video {
+            width: 640px;
+            height: 480px;
+            background-color: black;
         }
     </style>
 </head>
+
 <body>
-    <h1>Camera System Viewer</h1>
-    
-    <div class="video-container">
-        <div>
-            <h3>Normal Feed</h3>
-            <img id="normal-feed" class="video-feed" src="" alt="Normal Video Feed">
-        </div>
-        
-        <div>
-            <h3>Object Detection Feed</h3>
-            <img id="detection-feed" class="video-feed" src="" alt="Object Detection Feed">
-        </div>
+
+    <div id="video-container">
+        <h1>Live Video and Audio Stream</h1>
+        <video id="videoElement" autoplay></video>
     </div>
-    
-    <button id="start-stream">Start Stream</button>
-    <button id="stop-stream">Stop Stream</button>
-    
+
     <script>
-        let normalInterval;
-        let detectionInterval;
-        
-        document.getElementById('start-stream').addEventListener('click', () => {
-            startStream();
-        });
-        
-        document.getElementById('stop-stream').addEventListener('click', () => {
-            stopStream();
-        });
-        
-        function startStream() {
-            stopStream(); // Stop any existing intervals before starting new ones
-            
-            normalInterval = setInterval(() => {
-                fetch('http://192.168.10.59:65434', {
-                    method: 'POST',
-                    body: 'capture_normal'
-                })
-                .then(response => response.blob())
-                .then(blob => {
-                    const url = URL.createObjectURL(blob);
-                    document.getElementById('normal-feed').src = url;
-                })
-                .catch(error => console.error('Error fetching normal image:', error));
-            }, 1000);
-            
-            detectionInterval = setInterval(() => {
-                fetch('http://192.168.10.59:65434', {
-                    method: 'POST',
-                    body: 'capture_with_detection'
-                })
-                .then(response => response.blob())
-                .then(blob => {
-                    const url = URL.createObjectURL(blob);
-                    document.getElementById('detection-feed').src = url;
-                })
-                .catch(error => console.error('Error fetching detection image:', error));
-            }, 1000);
-        }
-        
-        function stopStream() {
-            if (normalInterval) {
-                clearInterval(normalInterval);
+        const videoElement = document.getElementById('videoElement');
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        let audioSource;
+
+        const socket = new WebSocket('ws://192.168.10.59:65434');
+
+        socket.binaryType = 'arraybuffer';
+
+        socket.onmessage = function (event) {
+            const data = new DataView(event.data);
+            const type = data.getUint8(0);
+
+            if (type === 1) {  // Video frame
+                const blob = new Blob([event.data.slice(1)], { type: 'image/jpeg' });
+                const url = URL.createObjectURL(blob);
+                videoElement.src = url;
+            } else if (type === 2) {  // Audio frame
+                const audioBuffer = event.data.slice(1);
+                audioContext.decodeAudioData(audioBuffer, function (buffer) {
+                    const source = audioContext.createBufferSource();
+                    source.buffer = buffer;
+                    source.connect(audioContext.destination);
+                    source.start(0);
+                });
             }
-            
-            if (detectionInterval) {
-                clearInterval(detectionInterval);
-            }
-        }
+        };
+
+        socket.onopen = function () {
+            console.log('Connected to the server at ws://192.168.10.59:65434');
+        };
+
+        socket.onerror = function (error) {
+            console.error('WebSocket error:', error);
+        };
+
+        socket.onclose = function () {
+            console.log('WebSocket connection closed');
+        };
     </script>
+
 </body>
+
 </html>

@@ -170,9 +170,6 @@ class CameraSystem:
         self.server_socket.setblocking(False)
         inputs = [self.server_socket]
         message_queues = {}
-        while True:
-            audio_bytes = self.capture_audio()
-            image_bytes, _ = self.capture_image()
 
         while inputs:
             try:
