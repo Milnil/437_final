@@ -76,6 +76,12 @@
         socket.onclose = function () {
             console.log('WebSocket connection closed');
         };
+
+        window.addEventListener('beforeunload', function() {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.close();
+            }
+        });
     </script>
 
 </body>

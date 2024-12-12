@@ -86,12 +86,17 @@ class CameraSystem:
         return audio_frames
 
     async def send_video_and_audio(self, websocket):
-        while True:
-            image_bytes = self.capture_image()
-            await websocket.send(b'\x01' + image_bytes)  # Prefix \x01 to indicate video frame
-            
-            audio_bytes = self.capture_audio()
-            await websocket.send(b'\x02' + audio_bytes)  # Prefix \x02 to indicate audio frame
+        try:
+            while True:
+                image_bytes = self.capture_image()
+                await websocket.send(b'\x01' + image_bytes)  # Prefix \x01 to indicate video frame
+                
+                audio_bytes = self.capture_audio()
+                await websocket.send(b'\x02' + audio_bytes)  # Prefix \x02 to indicate audio frame
+        except websockets.exceptions.ConnectionClosed:
+            logging.info("Client disconnected")
+        except Exception as e:
+            logging.error(f"Error in send_video_and_audio: {e}")
 
     async def server(self, websocket, path):
         try:
