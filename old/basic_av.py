@@ -46,13 +46,11 @@ class VideoAudioServer:
         self.picam2 = Picamera2()
         video_config = self.picam2.create_still_configuration(main={"size": (320, 240)})
         self.picam2.configure(video_config)
-        size = self.picam2.capture_metadata()['ScalerCrop'][2:]
-        full_res = self.picam2.camera_properties['PixelArraySize']
-        self.picam2.set_controls({"ScalerCrop": [0, 0, full_res[0], full_res[1]]})
         
         self.picam2.start()
         
-
+        full_res = self.picam2.camera_properties['PixelArraySize']
+        self.picam2.set_controls({"ScalerCrop": [0, 0, full_res[0], full_res[1]]})
             
 
         
