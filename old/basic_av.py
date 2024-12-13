@@ -47,6 +47,16 @@ class VideoAudioServer:
         video_config = self.picam2.create_still_configuration(main={"size": (320, 240)})
         self.picam2.configure(video_config)
         self.picam2.start()
+
+        size = self.picam2.capture_metadata()['ScalerCrop'][2:]
+        full_res = self.picam2.camera_properties['PixelArraySize']
+        self.picam2.capture_metadata()
+        size = [int(s * 0.95) for s in size]
+        offset = [(r - s) // 2 for r, s in zip(full_res, size)]
+        self.picam2.set_controls({"ScalerCrop": offset + size})
+
+            
+
         
         # Initialize PyAudio for microphone input
         self.audio = pyaudio.PyAudio()
