@@ -9,6 +9,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import os
 import pyaudio
 import ssl
+import queue
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -81,25 +82,29 @@ class CameraServer(HTTPServer):
         self.frame = None
         self.lock = threading.Lock()
 
-        # Audio settings
+        # Enhanced audio settings
         self.audio_rate = 16000
         self.audio_channels = 1
         self.audio_format = pyaudio.paInt16
         self.chunk_size = 1024
+        
+        # Use a queue instead of a list for better thread safety
+        self.audio_queue = queue.Queue(maxsize=100)  # Limit queue size to prevent memory issues
+        self.audio_lock = threading.Lock()
 
         self.pyaudio_instance = pyaudio.PyAudio()
-        self.audio_stream = self.pyaudio_instance.open(format=self.audio_format,
-                                                       channels=self.audio_channels,
-                                                       rate=self.audio_rate,
-                                                       input=True,
-                                                       frames_per_buffer=self.chunk_size)
-        self.audio_lock = threading.Lock()
-        self.audio_queue = []
+        self.audio_stream = self.pyaudio_instance.open(
+            format=self.audio_format,
+            channels=self.audio_channels,
+            rate=self.audio_rate,
+            input=True,
+            frames_per_buffer=self.chunk_size
+        )
 
+        # Start threads
         self.capture_thread = threading.Thread(target=self.capture_frames)
-        self.capture_thread.start()
-
         self.audio_thread = threading.Thread(target=self.capture_audio)
+        self.capture_thread.start()
         self.audio_thread.start()
 
     def configure_camera(self):
@@ -118,25 +123,46 @@ class CameraServer(HTTPServer):
 
     def capture_audio(self):
         while self.running:
-            data = self.audio_stream.read(self.chunk_size)
-            with self.audio_lock:
-                self.audio_queue.append(data)
-            # Log that we captured audio data
-            logging.debug(f"Captured audio chunk of length {len(data)} bytes from microphone.")
+            try:
+                data = self.audio_stream.read(self.chunk_size, exception_on_overflow=False)
+                if data:
+                    # Use queue instead of list
+                    try:
+                        self.audio_queue.put(data, block=False)
+                        logging.debug(f"Captured audio chunk of length {len(data)} bytes")
+                    except queue.Full:
+                        # If queue is full, remove oldest item and add new one
+                        try:
+                            self.audio_queue.get_nowait()
+                            self.audio_queue.put(data, block=False)
+                        except:
+                            pass
+            except Exception as e:
+                logging.error(f"Error capturing audio: {e}")
+                time.sleep(0.1)  # Prevent tight loop on error
 
     def get_frame(self):
         with self.lock:
             return self.frame
 
     def get_audio_frame(self):
-        with self.audio_lock:
-            if self.audio_queue:
-                return self.audio_queue.pop(0)
-            else:
-                return None
+        try:
+            # Non-blocking get with timeout
+            return self.audio_queue.get(timeout=0.1)
+        except queue.Empty:
+            return None
+        except Exception as e:
+            logging.error(f"Error getting audio frame: {e}")
+            return None
 
     def shutdown_server(self):
         self.running = False
+        # Clear audio queue
+        while not self.audio_queue.empty():
+            try:
+                self.audio_queue.get_nowait()
+            except:
+                pass
         self.picam2.stop()
         self.audio_stream.stop_stream()
         self.audio_stream.close()
