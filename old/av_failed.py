@@ -1,174 +1,164 @@
+import socket
+import select
+import queue
 import logging
 import io
-from PIL import Image
-from picamera2 import Picamera2
-import cv2
-import threading
 import time
-from http.server import HTTPServer, BaseHTTPRequestHandler
-import os
+import struct
+from picamera2 import Picamera2
+from PIL import Image
 import pyaudio
-import ssl
-import wave
-import queue
+import numpy as np
 
+# Configure logging
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-class MJPEGHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path == '/video':
-            self.send_response(200)
-            self.send_header('Content-type', 'multipart/x-mixed-replace; boundary=frame')
-            self.end_headers()
-            logging.info(f"WOOOOOOOOOOO")
-
-            while True:
-                if not self.server.running:
-                    break
-                frame = self.server.get_frame()
-                if frame is not None:
-                    self.wfile.write(b"--frame\r\n")
-                    self.send_header('Content-Type', 'image/jpeg')
-                    self.send_header('Content-Length', str(len(frame)))
-                    self.end_headers()
-                    self.wfile.write(frame)
-                    self.wfile.write(b"\r\n")
-                time.sleep(0.033)  # ~30fps
-        elif self.path == '/audio':
-            self.send_response(200)
-            self.send_header('Content-type', 'application/octet-stream')
-            self.end_headers()
-            
-            # Open and read the test WAV file
-            try:
-                with wave.open('BabyElephantWalk60.wav', 'rb') as wav_file:
-                    chunk_size = 1024
-                    while self.server.running:
-                        data = wav_file.readframes(chunk_size)
-                        if not data:
-                            # If we reach the end, go back to start
-                            wav_file.rewind()
-                            continue
-                        
-                        logging.info(f"Sending WAV chunk of length {len(data)} bytes to client")
-                        try:
-                            self.wfile.write(data)
-                            self.wfile.flush()  # Ensure data is sent immediately
-                        except Exception as e:
-                            logging.error(f"Error sending audio data: {e}")
-                            break
-                        time.sleep(0.01)  # Small delay to control streaming rate
-            except Exception as e:
-                logging.error(f"Error opening or reading WAV file: {e}")
-        else:
-            # Serve files
-            if self.path == '/':
-                self.path = '/index.html'
-            file_path = '.' + self.path
-            if os.path.isfile(file_path):
-                self.send_response(200)
-                if file_path.endswith('.html'):
-                    self.send_header('Content-type', 'text/html')
-                elif file_path.endswith('.js'):
-                    self.send_header('Content-type', 'application/javascript')
-                elif file_path.endswith('.css'):
-                    self.send_header('Content-type', 'text/css')
-                else:
-                    self.send_header('Content-type', 'application/octet-stream')
-                self.end_headers()
-
-                with open(file_path, 'rb') as f:
-                    self.wfile.write(f.read())
-            else:
-                self.send_response(404)
-                self.end_headers()
-                self.wfile.write(b"File not found.")
-
-class CameraServer(HTTPServer):
-    def __init__(self, server_address, RequestHandlerClass):
-        super().__init__(server_address, RequestHandlerClass)
-        self.picam2 = Picamera2()
-        self.configure_camera()
-        self.running = True
-        self.frame = None
-        self.lock = threading.Lock()
-
-        # Enhanced audio settings
-        self.audio_rate = 16000
-        self.audio_channels = 1
-        self.audio_format = pyaudio.paInt16
-        self.chunk_size = 1024
+class VideoAudioServer:
+    def __init__(self, host="0.0.0.0", port=65434):
+        logging.info("Initializing VideoAudioServer")
         
-        # Use a queue instead of a list for better thread safety
-        self.audio_queue = queue.Queue(maxsize=100)  # Limit queue size to prevent memory issues
-        self.audio_lock = threading.Lock()
-
-        self.pyaudio_instance = pyaudio.PyAudio()
-        self.audio_stream = self.pyaudio_instance.open(format=self.audio_format,
-                                                       channels=self.audio_channels,
-                                                       rate=self.audio_rate,
-                                                       input=True,
-                                                       frames_per_buffer=self.chunk_size)
-        self.audio_lock = threading.Lock()
-        self.audio_queue = []
-
-        self.capture_thread = threading.Thread(target=self.capture_frames)
-        self.capture_thread.start()
-
-        self.audio_thread = threading.Thread(target=self.capture_audio)
-        self.audio_thread.start()
-
-    def configure_camera(self):
-        config = self.picam2.create_preview_configuration(main={"size": (320, 240)})
-        self.picam2.configure(config)
+        # Initialize camera
+        self.picam2 = Picamera2()
+        video_config = self.picam2.create_still_configuration(main={"size": (320, 240)})
+        self.picam2.configure(video_config)
         self.picam2.start()
+        
+        # Initialize PyAudio for microphone input
+        self.audio = pyaudio.PyAudio()
+        # You may need to adjust the device_index, channels, rate, and format depending on your USB mic.
+        self.audio_stream = self.audio.open(
+            format=pyaudio.paInt16,
+            channels=1,
+            rate=16000,
+            input=True,
+            frames_per_buffer=1024
+        )
 
-    def capture_frames(self):
-        while self.running:
-            image = self.picam2.capture_array()
-            ret, jpeg = cv2.imencode('.jpg', image, [cv2.IMWRITE_JPEG_QUALITY, 90])
-            if ret:
-                with self.lock:
-                    self.frame = jpeg.tobytes()
-            time.sleep(0.033)
+        # Setup server socket
+        self.host = host
+        self.port = port
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server_socket.bind((self.host, self.port))
+        self.server_socket.listen()
+        logging.info(f"Server listening on {self.host}:{self.port}")
 
-    def capture_audio(self):
-        while self.running:
-            data = self.audio_stream.read(self.chunk_size)
-            with self.audio_lock:
-                self.audio_queue.append(data)
-            # Log that we captured audio data
-            logging.debug(f"Captured audio chunk of length {len(data)} bytes from microphone.")
+    def capture_video_frame(self):
+        # Capture image using Picamera2
+        image = self.picam2.capture_array()
+        img = Image.fromarray(image)
+        img_byte_arr = io.BytesIO()
+        img.save(img_byte_arr, format='JPEG')
+        return img_byte_arr.getvalue()
 
-    def get_frame(self):
-        with self.lock:
-            return self.frame
+    def capture_audio_chunk(self):
+        # Read a chunk of audio data from the microphone
+        data = self.audio_stream.read(1024, exception_on_overflow=False)
+        return data
 
-    def get_audio_frame(self):
-        with self.audio_lock:
-            if self.audio_queue:
-                return self.audio_queue.pop(0)
-            else:
-                return None
+    def run(self):
+        logging.info("Starting server run loop")
+        self.server_socket.setblocking(False)
+        inputs = [self.server_socket]
+        outputs = []
+        message_queues = {}
 
-    def shutdown_server(self):
-        self.running = False
+        while inputs:
+            try:
+                readable, writable, exceptional = select.select(
+                    inputs, outputs, inputs, 0.1
+                )
+            except Exception as e:
+                logging.error(f"Select error: {e}")
+                break
+
+            for s in readable:
+                if s is self.server_socket:
+                    client_socket, client_address = s.accept()
+                    logging.info(f"New connection from {client_address}")
+                    client_socket.setblocking(False)
+                    inputs.append(client_socket)
+                    message_queues[client_socket] = queue.Queue()
+                else:
+                    # For this simplified server, we don't expect meaningful inbound data.
+                    # If the client closes, data will be empty.
+                    try:
+                        data = s.recv(1024)
+                        if not data:
+                            # Client disconnected
+                            logging.info("Client disconnected")
+                            if s in outputs:
+                                outputs.remove(s)
+                            inputs.remove(s)
+                            s.close()
+                            del message_queues[s]
+                    except Exception as e:
+                        logging.error(f"Error reading from client: {e}")
+                        if s in outputs:
+                            outputs.remove(s)
+                        inputs.remove(s)
+                        s.close()
+                        del message_queues[s]
+
+            # Send video and audio data to all connected clients
+            video_data = self.capture_video_frame()
+            audio_data = self.capture_audio_chunk()
+
+            # Prepare header: 
+            # We'll send two lengths: video_size and audio_size, each as 4-byte integers (network byte order)
+            header = struct.pack('!II', len(video_data), len(audio_data))
+            payload = header + video_data + audio_data
+
+            for s in inputs:
+                if s is not self.server_socket:
+                    # Queue the message
+                    message_queues[s].put(payload)
+                    if s not in outputs:
+                        outputs.append(s)
+
+            for s in writable:
+                try:
+                    next_msg = message_queues[s].get_nowait()
+                except queue.Empty:
+                    outputs.remove(s)
+                else:
+                    try:
+                        s.sendall(next_msg)
+                    except Exception as e:
+                        logging.error(f"Send error: {e}")
+                        if s in outputs:
+                            outputs.remove(s)
+                        if s in inputs:
+                            inputs.remove(s)
+                        s.close()
+                        del message_queues[s]
+
+            for s in exceptional:
+                logging.error(f"Exception on {s.getpeername()}")
+                inputs.remove(s)
+                if s in outputs:
+                    outputs.remove(s)
+                s.close()
+                del message_queues[s]
+
+        self.cleanup()
+
+    def cleanup(self):
+        logging.info("Cleaning up resources")
         self.picam2.stop()
         self.audio_stream.stop_stream()
         self.audio_stream.close()
-        self.pyaudio_instance.terminate()
-        super().shutdown()
+        self.audio.terminate()
+        logging.info("Cleanup complete")
 
 if __name__ == "__main__":
-    # If you're serving over HTTPS, use a self-signed certificate as previously discussed.
-    # Otherwise, just run over HTTP. Below is HTTP for simplicity:
-    server = CameraServer(('0.0.0.0', 8000), MJPEGHandler)
+    logging.info("Program is starting...")
+    server = VideoAudioServer()
     try:
-        logging.info("Starting server on http://0.0.0.0:8000")
-        server.serve_forever()
+        server.run()
     except KeyboardInterrupt:
-        logging.info("Shutting down...")
-        server.shutdown_server()
+        logging.info("KeyboardInterrupt caught, exiting program")
+        server.cleanup()
