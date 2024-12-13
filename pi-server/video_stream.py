@@ -18,6 +18,8 @@ class VideoStreamHandler:
         )
         self.picam2.configure(self.config)
         self.picam2.start()
+        full_res = self.picam2.camera_properties['PixelArraySize']
+        self.picam2.set_controls({"ScalerCrop": [0, 0, full_res[0], full_res[1]]})
         self.clients = set()
 
     async def handle_client(self, websocket):
