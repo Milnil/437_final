@@ -10,6 +10,7 @@ import os
 import pyaudio
 import ssl
 import wave
+import queue
 
 logging.basicConfig(
     level=logging.DEBUG,
