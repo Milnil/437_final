@@ -9,7 +9,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import os
 import pyaudio
 import ssl
-import queue
+import wave
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -39,16 +39,28 @@ class MJPEGHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-type', 'application/octet-stream')
             self.end_headers()
-
-            # Continuously send raw PCM audio data
-            while self.server.running:
-                audio_data = self.server.get_audio_frame()
-                if audio_data:
-                    # Logging each audio chunk being sent
-                    logging.debug(f"Sending audio chunk of length {len(audio_data)} bytes.")
-                    self.wfile.write(audio_data)
-                else:
-                    time.sleep(0.01)
+            
+            # Open and read the test WAV file
+            try:
+                with wave.open('BabyElephantWalk60.wav', 'rb') as wav_file:
+                    chunk_size = 1024
+                    while self.server.running:
+                        data = wav_file.readframes(chunk_size)
+                        if not data:
+                            # If we reach the end, go back to start
+                            wav_file.rewind()
+                            continue
+                        
+                        logging.info(f"Sending WAV chunk of length {len(data)} bytes to client")
+                        try:
+                            self.wfile.write(data)
+                            self.wfile.flush()  # Ensure data is sent immediately
+                        except Exception as e:
+                            logging.error(f"Error sending audio data: {e}")
+                            break
+                        time.sleep(0.01)  # Small delay to control streaming rate
+            except Exception as e:
+                logging.error(f"Error opening or reading WAV file: {e}")
         else:
             # Serve files
             if self.path == '/':
@@ -93,18 +105,18 @@ class CameraServer(HTTPServer):
         self.audio_lock = threading.Lock()
 
         self.pyaudio_instance = pyaudio.PyAudio()
-        self.audio_stream = self.pyaudio_instance.open(
-            format=self.audio_format,
-            channels=self.audio_channels,
-            rate=self.audio_rate,
-            input=True,
-            frames_per_buffer=self.chunk_size
-        )
+        self.audio_stream = self.pyaudio_instance.open(format=self.audio_format,
+                                                       channels=self.audio_channels,
+                                                       rate=self.audio_rate,
+                                                       input=True,
+                                                       frames_per_buffer=self.chunk_size)
+        self.audio_lock = threading.Lock()
+        self.audio_queue = []
 
-        # Start threads
         self.capture_thread = threading.Thread(target=self.capture_frames)
-        self.audio_thread = threading.Thread(target=self.capture_audio)
         self.capture_thread.start()
+
+        self.audio_thread = threading.Thread(target=self.capture_audio)
         self.audio_thread.start()
 
     def configure_camera(self):
@@ -123,46 +135,25 @@ class CameraServer(HTTPServer):
 
     def capture_audio(self):
         while self.running:
-            try:
-                data = self.audio_stream.read(self.chunk_size, exception_on_overflow=False)
-                if data:
-                    # Use queue instead of list
-                    try:
-                        self.audio_queue.put(data, block=False)
-                        logging.debug(f"Captured audio chunk of length {len(data)} bytes")
-                    except queue.Full:
-                        # If queue is full, remove oldest item and add new one
-                        try:
-                            self.audio_queue.get_nowait()
-                            self.audio_queue.put(data, block=False)
-                        except:
-                            pass
-            except Exception as e:
-                logging.error(f"Error capturing audio: {e}")
-                time.sleep(0.1)  # Prevent tight loop on error
+            data = self.audio_stream.read(self.chunk_size)
+            with self.audio_lock:
+                self.audio_queue.append(data)
+            # Log that we captured audio data
+            logging.debug(f"Captured audio chunk of length {len(data)} bytes from microphone.")
 
     def get_frame(self):
         with self.lock:
             return self.frame
 
     def get_audio_frame(self):
-        try:
-            # Non-blocking get with timeout
-            return self.audio_queue.get(timeout=0.1)
-        except queue.Empty:
-            return None
-        except Exception as e:
-            logging.error(f"Error getting audio frame: {e}")
-            return None
+        with self.audio_lock:
+            if self.audio_queue:
+                return self.audio_queue.pop(0)
+            else:
+                return None
 
     def shutdown_server(self):
         self.running = False
-        # Clear audio queue
-        while not self.audio_queue.empty():
-            try:
-                self.audio_queue.get_nowait()
-            except:
-                pass
         self.picam2.stop()
         self.audio_stream.stop_stream()
         self.audio_stream.close()
