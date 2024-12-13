@@ -37,7 +37,7 @@
             padding: 20px;
             background: #fff;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .button {
@@ -91,7 +91,7 @@
             background: #fff;
             padding: 20px;
             border-radius: 4px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
     </style>
 </head>
@@ -115,9 +115,9 @@
     <div id="instructions">
         <h2>Instructions:</h2>
         <ol>
-            <li>Click "Start Stream" to begin both video and audio streams simultaneously.</li>
-            <li>Use "Mute Audio" to toggle audio on/off.</li>
-            <li>Check browser console for detailed stream information.</li>
+            <li>Click "Start Stream" to begin both video and audio streams</li>
+            <li>Use "Mute Audio" to toggle audio on/off</li>
+            <li>Check browser console for detailed stream information</li>
         </ol>
         <p><strong>Note:</strong> Audio playback requires user interaction due to browser policies.</p>
     </div>
@@ -137,40 +137,37 @@
         const videoElement = document.getElementById('video');
         const statusDiv = document.getElementById('status');
 
-        startButton.addEventListener('click', () => {
+        startButton.addEventListener('click', async () => {
             if (!streaming) {
                 streaming = true;
                 startButton.textContent = 'Stop Stream';
                 statusDiv.textContent = 'Connecting...';
-
-                // Start video immediately
+                
+                // Start video
                 videoElement.style.display = 'block';
                 videoElement.src = '/video';
-
-                // Start audio in parallel (no await)
-                startAudio().then(() => {
-                    console.log("Audio streaming started successfully.");
+                
+                // Start audio
+                try {
+                    await startAudio();
                     statusDiv.textContent = 'Connected: Streaming audio and video';
                     statusDiv.className = 'status-connected';
-                }).catch((error) => {
+                } catch (error) {
                     console.error('Failed to start audio:', error);
                     statusDiv.textContent = 'Error: Audio stream failed to start';
                     statusDiv.className = 'status-disconnected';
-                });
-
+                }
             } else {
-                // Stop streaming
                 streaming = false;
                 startButton.textContent = 'Start Stream';
                 videoElement.style.display = 'none';
                 videoElement.src = '';
                 if (audioContext) {
-                    audioContext.close();
+                    await audioContext.close();
                     audioContext = null;
                 }
                 statusDiv.textContent = 'Stream stopped';
                 statusDiv.className = '';
-                console.log("Streaming stopped.");
             }
         });
 
@@ -197,7 +194,7 @@
                 if (muted || buffer.length < neededBytes) {
                     output.fill(0);
                     if (!muted && buffer.length < neededBytes) {
-                        console.log(`Buffer underrun: have ${buffer.length} bytes, need ${neededBytes} bytes`);
+                        console.log(`Buffer underrun: have ${buffer.length}, need ${neededBytes} bytes`);
                     }
                     return;
                 }
@@ -215,16 +212,13 @@
             console.log("Fetching audio stream...");
             const response = await fetch('/audio');
             if (!response.ok) throw new Error('Failed to fetch audio stream');
-
+            
             console.log("Connected to audio stream");
             const reader = response.body.getReader();
 
             while (streaming) {
                 const { value, done } = await reader.read();
-                if (done) {
-                    console.log("Audio stream ended.");
-                    break;
-                }
+                if (done) break;
                 if (value) {
                     let newBuffer = new Uint8Array(buffer.length + value.length);
                     newBuffer.set(buffer, 0);
