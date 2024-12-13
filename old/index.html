@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Video and Audio Stream</title>
+    <title>Electron Stream Viewer</title>
     <style>
         #videoCanvas {
             border: 1px solid #000;
@@ -13,70 +13,7 @@
 
 <body>
     <canvas id="videoCanvas" width="320" height="240"></canvas>
-    <audio id="audioOutput" controls autoplay></audio>
-
-    <script>
-        // This code assumes you have a WebSocket server that forwards
-        // the exact binary data from the Python server.
-        var socket = new WebSocket('ws://192.168.10.59:8080');
-        socket.binaryType = 'arraybuffer';
-
-        const canvas = document.getElementById('videoCanvas');
-        const ctx = canvas.getContext('2d');
-        const audioElement = document.getElementById('audioOutput');
-
-        // For audio playback using Web Audio API:
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const audioQueue = [];
-
-        socket.addEventListener('message', function (event) {
-            let data = new Uint8Array(event.data);
-
-            // First 8 bytes: 4 bytes for video size, 4 bytes for audio size
-            let videoSize = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
-            let audioSize = (data[4] << 24) | (data[5] << 16) | (data[6] << 8) | data[7];
-
-            let videoData = data.slice(8, 8 + videoSize);
-            let audioData = data.slice(8 + videoSize, 8 + videoSize + audioSize);
-
-            // Decode the JPEG image
-            let blob = new Blob([videoData], { type: 'image/jpeg' });
-            let url = URL.createObjectURL(blob);
-            let img = new Image();
-            img.onload = function () {
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                URL.revokeObjectURL(url);
-            };
-            img.src = url;
-
-            // Decode and play audio
-            // audioData is raw PCM 16-bit, 16kHz, mono. We need to convert it to Float32 and play it.
-            // Create an AudioBuffer from this raw PCM data:
-            let pcm16 = new Int16Array(audioData.buffer);
-            let float32 = new Float32Array(pcm16.length);
-            for (let i = 0; i < pcm16.length; i++) {
-                float32[i] = pcm16[i] / 32768.0;
-            }
-
-            // Create an AudioBuffer
-            let audioBuffer = audioContext.createBuffer(1, float32.length, 16000);
-            audioBuffer.copyToChannel(float32, 0);
-
-            const source = audioContext.createBufferSource();
-            source.buffer = audioBuffer;
-            source.connect(audioContext.destination);
-            source.start();
-        });
-
-        socket.addEventListener('open', () => {
-            console.log("WebSocket connection opened.");
-        });
-
-        socket.addEventListener('close', () => {
-            console.log("WebSocket connection closed.");
-        });
-    </script>
-
+    <script src="index.js"></script>
 </body>
 
 </html>
