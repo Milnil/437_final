@@ -11,7 +11,9 @@ export const MicrophoneStream: React.FC<MicrophoneStreamProps> = ({
     isMicEnabled, 
     serverUrl 
 }) => {
-    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const streamNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+    const processorNodeRef = useRef<ScriptProcessorNode | null>(null);
     const websocketRef = useRef<WebSocket | null>(null);
 
     useEffect(() => {
@@ -29,21 +31,37 @@ export const MicrophoneStream: React.FC<MicrophoneStreamProps> = ({
                 ws.onopen = () => {
                     console.log('Microphone WebSocket connected');
                     
-                    // Start recording only after WebSocket is connected
-                    const mediaRecorder = new MediaRecorder(mediaStream!, {
-                        mimeType: 'audio/webm;codecs=opus'
+                    // Initialize audio processing
+                    audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({
+                        sampleRate: 44100,  // Match Pi's sample rate
                     });
-                    mediaRecorderRef.current = mediaRecorder;
 
-                    // Send audio data when available
-                    mediaRecorder.ondataavailable = (event) => {
-                        if (event.data.size > 0 && ws.readyState === WebSocket.OPEN) {
-                            ws.send(event.data);
+                    // Create audio source from microphone
+                    streamNodeRef.current = audioContextRef.current.createMediaStreamSource(mediaStream!);
+                    
+                    // Create script processor for raw audio access
+                    processorNodeRef.current = audioContextRef.current.createScriptProcessor(1024, 1, 1);
+                    
+                    // Process audio data
+                    processorNodeRef.current.onaudioprocess = (e) => {
+                        if (ws.readyState === WebSocket.OPEN) {
+                            const inputData = e.inputBuffer.getChannelData(0);
+                            
+                            // Convert Float32Array to Int16Array
+                            const int16Data = new Int16Array(inputData.length);
+                            for (let i = 0; i < inputData.length; i++) {
+                                // Convert float to int16
+                                const s = Math.max(-1, Math.min(1, inputData[i]));
+                                int16Data[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                            }
+                            
+                            ws.send(int16Data.buffer);
                         }
                     };
 
-                    mediaRecorder.start(100); // Capture in 100ms chunks
-                    console.log('Started recording microphone');
+                    // Connect the audio nodes
+                    streamNodeRef.current.connect(processorNodeRef.current);
+                    processorNodeRef.current.connect(audioContextRef.current.destination);
                 };
 
                 ws.onerror = (error) => {
@@ -61,9 +79,19 @@ export const MicrophoneStream: React.FC<MicrophoneStreamProps> = ({
         };
 
         const stopMicrophone = () => {
-            if (mediaRecorderRef.current) {
-                mediaRecorderRef.current.stop();
-                mediaRecorderRef.current = null;
+            if (processorNodeRef.current) {
+                processorNodeRef.current.disconnect();
+                processorNodeRef.current = null;
+            }
+
+            if (streamNodeRef.current) {
+                streamNodeRef.current.disconnect();
+                streamNodeRef.current = null;
+            }
+
+            if (audioContextRef.current) {
+                audioContextRef.current.close();
+                audioContextRef.current = null;
             }
 
             if (websocketRef.current) {
@@ -77,18 +105,16 @@ export const MicrophoneStream: React.FC<MicrophoneStreamProps> = ({
             }
         };
 
-        // Start/stop based on props
         if (isStreaming && isMicEnabled) {
             startMicrophone();
         } else {
             stopMicrophone();
         }
 
-        // Cleanup on unmount
         return () => {
             stopMicrophone();
         };
     }, [isStreaming, isMicEnabled, serverUrl]);
 
-    return null; // This component doesn't render anything
+    return null;
 }; 
