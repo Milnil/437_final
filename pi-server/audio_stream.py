@@ -42,7 +42,7 @@ class AudioStreamHandler:
                 self.cleanup()
 
     async def start_server(self):
-        async with serve(self.handle_client, "0.0.0.0", 6002):
+        async with serve(self.handle_client, "0.0.0.0", 501):
             await asyncio.Future()  # run forever
 
     def cleanup(self):

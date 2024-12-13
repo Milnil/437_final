@@ -14,9 +14,9 @@ export const AudioStream: React.FC<AudioStreamProps> = ({ isStreaming, isMuted, 
         if (isStreaming && !audioContextRef.current) {
             try {
                 audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-                const wsUrl = `${serverUrl.replace('http://', 'ws://')}:6002/audio`;
+                const wsUrl = `${serverUrl.replace('http://', 'ws://')}:501/audio`;
                 websocketRef.current = new WebSocket(wsUrl);
-                
+
                 websocketRef.current.onopen = () => {
                     console.log('Audio WebSocket connection established');
                 };
