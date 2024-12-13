@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { 
-  Box, 
-  Container, 
-  Paper, 
-  Typography, 
-  TextField, 
-  Switch, 
+import {
+  Box,
+  Container,
+  Paper,
+  Typography,
+  TextField,
+  Switch,
   FormControlLabel,
   Stack,
   IconButton,
@@ -40,7 +40,7 @@ const darkTheme = createTheme({
 });
 
 function App() {
-  const [serverUrl, setServerUrl] = useState('localhost');
+  const [serverUrl, setServerUrl] = useState('192.168.10.59');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
@@ -95,7 +95,7 @@ function App() {
               </Typography>
               <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
                 <Tooltip title={isVideoEnabled ? "Disable Video" : "Enable Video"}>
-                  <IconButton 
+                  <IconButton
                     onClick={() => setIsVideoEnabled(!isVideoEnabled)}
                     color={isVideoEnabled ? "primary" : "default"}
                     disabled={!isStreaming}
@@ -104,7 +104,7 @@ function App() {
                   </IconButton>
                 </Tooltip>
                 <Tooltip title={isMicEnabled ? "Disable Microphone" : "Enable Microphone"}>
-                  <IconButton 
+                  <IconButton
                     onClick={() => setIsMicEnabled(!isMicEnabled)}
                     color={isMicEnabled ? "primary" : "default"}
                     disabled={!isStreaming}
@@ -113,7 +113,7 @@ function App() {
                   </IconButton>
                 </Tooltip>
                 <Tooltip title={isMuted ? "Unmute Audio" : "Mute Audio"}>
-                  <IconButton 
+                  <IconButton
                     onClick={() => setIsMuted(!isMuted)}
                     color={isMuted ? "default" : "primary"}
                     disabled={!isStreaming}
@@ -134,15 +134,15 @@ function App() {
                 </Typography>
                 {isVideoEnabled && (
                   <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                    <VideoStream 
-                      isStreaming={isStreaming && isVideoEnabled} 
-                      serverUrl={serverUrl} 
+                    <VideoStream
+                      isStreaming={isStreaming && isVideoEnabled}
+                      serverUrl={serverUrl}
                     />
                   </Box>
                 )}
-                <AudioStream 
-                  isStreaming={isStreaming} 
-                  isMuted={isMuted} 
+                <AudioStream
+                  isStreaming={isStreaming}
+                  isMuted={isMuted}
                   serverUrl={serverUrl}
                 />
               </Stack>
