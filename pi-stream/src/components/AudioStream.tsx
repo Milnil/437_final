@@ -12,26 +12,37 @@ export const AudioStream: React.FC<AudioStreamProps> = ({ isStreaming, isMuted, 
 
     useEffect(() => {
         if (isStreaming && !audioContextRef.current) {
-            // Initialize audio context
-            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+            try {
+                audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+                const wsUrl = `${serverUrl.replace('http://', 'ws://')}:6002/audio`;
+                websocketRef.current = new WebSocket(wsUrl);
+                
+                websocketRef.current.onopen = () => {
+                    console.log('Audio WebSocket connection established');
+                };
 
-            // Connect WebSocket
-            const wsUrl = serverUrl.replace('http://', 'ws://').replace(':8000', ':8001');
-            websocketRef.current = new WebSocket(`${wsUrl}/audio`);
-            websocketRef.current.binaryType = 'arraybuffer';
+                websocketRef.current.onerror = (error) => {
+                    console.error('Audio WebSocket error:', error);
+                };
 
-            websocketRef.current.onmessage = (event) => {
-                if (isMuted || !audioContextRef.current) return;
+                websocketRef.current.binaryType = 'arraybuffer';
 
-                const audioData = new Float32Array(event.data);
-                const buffer = audioContextRef.current.createBuffer(1, audioData.length, 44100);
-                buffer.getChannelData(0).set(audioData);
+                websocketRef.current.onmessage = async (event) => {
+                    if (isMuted || !audioContextRef.current) return;
 
-                const source = audioContextRef.current.createBufferSource();
-                source.buffer = buffer;
-                source.connect(audioContextRef.current.destination);
-                source.start();
-            };
+                    try {
+                        const audioBuffer = await audioContextRef.current.decodeAudioData(event.data);
+                        const source = audioContextRef.current.createBufferSource();
+                        source.buffer = audioBuffer;
+                        source.connect(audioContextRef.current.destination);
+                        source.start();
+                    } catch (error) {
+                        console.error('Error playing audio:', error);
+                    }
+                };
+            } catch (error) {
+                console.error('Error initializing audio context:', error);
+            }
         }
 
         return () => {
@@ -44,7 +55,7 @@ export const AudioStream: React.FC<AudioStreamProps> = ({ isStreaming, isMuted, 
                 audioContextRef.current = null;
             }
         };
-    }, [isStreaming, serverUrl]);
+    }, [isStreaming, isMuted, serverUrl]);
 
-    return null; // Audio stream doesn't need visual representation
+    return null;
 };

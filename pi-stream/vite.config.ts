@@ -5,9 +5,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/video': 'http://192.168.10.59:8000',
       '/ws': {
-        target: 'ws://192.168.10.59:8001',
+        target: 'ws://localhost:6001',
+        ws: true,
+      },
+      '/audio': {
+        target: 'ws://localhost:6002',
         ws: true,
       }
     }

@@ -11,6 +11,11 @@ import wave
 import queue
 import websockets
 import asyncio
+import numpy as np
+from websockets.server import serve
+import pyaudio
+from video_stream import VideoStreamHandler
+from audio_stream import AudioStreamHandler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -195,17 +200,21 @@ class WebSocketServer:
         except websockets.exceptions.ConnectionClosed:
             logging.info("WebSocket connection closed")
 
-if __name__ == "__main__":
-    camera_server = CameraServer(('0.0.0.0', 8000), MJPEGHandler)
-    ws_server = WebSocketServer(camera_server)
+async def main():
+    video_handler = VideoStreamHandler()
+    audio_handler = AudioStreamHandler()
     
-    async def main():
-        async with websockets.serve(ws_server.audio_handler, '0.0.0.0', 8001):
-            await asyncio.Future()  # run forever
-
     try:
-        logging.info("Starting servers...")
-        asyncio.run(main())
+        # Start both servers concurrently
+        await asyncio.gather(
+            video_handler.start_server(),
+            audio_handler.start_server()
+        )
     except KeyboardInterrupt:
-        logging.info("Shutting down...")
-        camera_server.shutdown_server()
+        print("Shutting down servers...")
+    finally:
+        video_handler.cleanup()
+        audio_handler.cleanup()
+
+if __name__ == "__main__":
+    asyncio.run(main())

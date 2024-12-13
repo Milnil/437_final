@@ -33,8 +33,8 @@ const App: React.FC = () => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
 
-  // Replace with your Raspberry Pi's IP address or hostname
-  const serverUrl = 'http://localhost:8000';
+  // Update this with your Raspberry Pi's IP address
+  const serverUrl = 'http://localhost';
 
   return (
     <AppContainer>
