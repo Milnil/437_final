@@ -127,7 +127,14 @@
 
             // Start fetching audio data
             console.log("Fetching audio data from /audio...");
-            const response = await fetch('/audio');
+            const response = await fetch('/audio').catch(err => {
+                console.error('Fetch error:', err);
+            });
+            if (!response || !response.ok) {
+                console.error('Failed to fetch audio stream', response);
+                return;
+            }
+
             if (!response.ok) {
                 console.error('Failed to fetch audio stream');
                 return;
