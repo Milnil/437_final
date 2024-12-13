@@ -41,8 +41,8 @@ class VideoStreamHandler:
             logger.info("Video client disconnected")
 
     async def start_server(self):
-        async with serve(self.handle_client, "0.0.0.0", 6001):  # Changed port to 6001
-            logger.info("Video server started on ws://0.0.0.0:6001")
+        async with serve(self.handle_client, "0.0.0.0", 5001):  # Changed port to 5001
+            logger.info("Video server started on ws://0.0.0.0:5001")
             await asyncio.Future()
 
     def cleanup(self):

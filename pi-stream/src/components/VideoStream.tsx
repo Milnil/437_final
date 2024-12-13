@@ -22,8 +22,8 @@ export const VideoStream: React.FC<VideoStreamProps> = ({ isStreaming, serverUrl
 
     useEffect(() => {
         if (isStreaming && imgRef.current) {
-            const ws = new WebSocket(`${serverUrl.replace('http://', 'ws://')}:6001/video`);
-            
+            const ws = new WebSocket(`${serverUrl.replace('http://', 'ws://')}:5001/video`);
+
             ws.onmessage = async (event) => {
                 try {
                     const blob = new Blob([event.data], { type: 'image/jpeg' });

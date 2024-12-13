@@ -85,10 +85,10 @@ async def main():
     video_stream = MockVideoStream()
     audio_stream = MockAudioStream()
     
-    async with serve(video_stream.handle_client, "localhost", 6001):
-        logger.info("Video server started on ws://localhost:6001")
-        async with serve(audio_stream.handle_client, "localhost", 6002):
-            logger.info("Audio server started on ws://localhost:6002")
+    async with serve(video_stream.handle_client, "localhost", 5001):
+        logger.info("Video server started on ws://localhost:5001")
+        async with serve(audio_stream.handle_client, "localhost", 5002):
+            logger.info("Audio server started on ws://localhost:5002")
             await asyncio.Future()
 
 if __name__ == "__main__":

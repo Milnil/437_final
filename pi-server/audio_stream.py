@@ -51,8 +51,8 @@ class AudioStreamHandler:
             logger.info("Audio client disconnected")
 
     async def start_server(self):
-        async with serve(self.handle_client, "0.0.0.0", 6002):
-            logger.info("Audio server started on ws://0.0.0.0:6002")
+        async with serve(self.handle_client, "0.0.0.0", 5002):
+            logger.info("Audio server started on ws://0.0.0.0:5002")
             await asyncio.Future()
 
     def cleanup(self):

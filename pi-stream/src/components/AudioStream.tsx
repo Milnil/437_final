@@ -15,7 +15,7 @@ export const AudioStream: React.FC<AudioStreamProps> = ({ isStreaming, isMuted, 
     useEffect(() => {
         if (isStreaming) {
             try {
-                const wsUrl = `${serverUrl.replace('http://', 'ws://')}:6002/audio`;
+                const wsUrl = `${serverUrl.replace('http://', 'ws://')}:5002/audio`;
                 websocketRef.current = new WebSocket(wsUrl);
                 websocketRef.current.binaryType = 'arraybuffer';
 
