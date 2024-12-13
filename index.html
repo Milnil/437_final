@@ -132,7 +132,6 @@
         let muted = false;
         let buffer = new Uint8Array(0);
         let streaming = false;
-        let abortController;
 
         const startButton = document.getElementById('startButton');
         const muteButton = document.getElementById('muteButton');
@@ -146,40 +145,37 @@
                 statusDiv.textContent = 'Connecting...';
                 statusDiv.className = '';
 
-                // User gesture event: create and resume AudioContext here
+                // User gesture: create and resume audio context here
                 if (!audioContext) {
                     audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
-                    console.log("AudioContext created with sampleRate:", sampleRate);
+                    console.log("AudioContext created:", audioContext);
                 }
 
-                // Resume the audio context right away to comply with autoplay policies
+                // Resume immediately in user gesture to allow audio playback
                 audioContext.resume().then(() => {
                     console.log("AudioContext resumed");
                 });
 
-                // Set up ScriptProcessorNode in user gesture
+                // Set up ScriptProcessorNode
                 processor = audioContext.createScriptProcessor(4096, 0, channels);
                 processor.connect(audioContext.destination);
                 processor.onaudioprocess = handleAudioProcess;
 
-                // Start video immediately
+                // Start video first
                 videoElement.style.display = 'block';
                 videoElement.src = '/video';
-                console.log("Video stream started.");
+                console.log("Video stream started:", videoElement.src);
 
-                // Start fetching audio in parallel
-                abortController = new AbortController();
-                startAudioFetch(abortController.signal)
-                    .then(() => {
-                        console.log("Audio stream ended normally.");
-                    })
-                    .catch(err => {
-                        console.error("Audio stream error:", err);
-                        if (streaming) {
-                            statusDiv.textContent = 'Error: Audio stream failed';
-                            statusDiv.className = 'status-disconnected';
-                        }
-                    });
+                // Start audio fetch in parallel (no await)
+                startAudioFetch().then(() => {
+                    console.log("Audio stream ended normally.");
+                }).catch(err => {
+                    console.error("Audio stream error:", err);
+                    if (streaming) {
+                        statusDiv.textContent = 'Error: Audio stream failed';
+                        statusDiv.className = 'status-disconnected';
+                    }
+                });
 
                 statusDiv.textContent = 'Connected: Streaming audio and video';
                 statusDiv.className = 'status-connected';
@@ -192,11 +188,6 @@
                 // Stop video
                 videoElement.style.display = 'none';
                 videoElement.src = '';
-
-                // Stop audio fetching
-                if (abortController) {
-                    abortController.abort();
-                }
 
                 // Close audio context if open
                 if (audioContext && audioContext.state !== 'closed') {
@@ -242,9 +233,9 @@
             }
         }
 
-        async function startAudioFetch(signal) {
+        async function startAudioFetch() {
             console.log("Fetching audio stream...");
-            const response = await fetch('/audio', { signal });
+            const response = await fetch('/audio');
             if (!response.ok) throw new Error('Failed to fetch audio stream');
 
             console.log("Connected to audio stream");
