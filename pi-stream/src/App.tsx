@@ -25,6 +25,7 @@ import {
 } from '@mui/icons-material';
 import { VideoStream } from './components/VideoStream';
 import { AudioStream } from './components/AudioStream';
+import { MicrophoneStream } from './components/MicrophoneStream';
 
 // Create a dark theme
 const darkTheme = createTheme({
@@ -125,6 +126,13 @@ function App() {
             </Stack>
           </Paper>
 
+          {/* Add MicrophoneStream component */}
+          <MicrophoneStream 
+            isStreaming={isStreaming} 
+            isMicEnabled={isMicEnabled} 
+            serverUrl={serverUrl}
+          />
+
           {/* Stream Display */}
           {isStreaming && (
             <Paper sx={{ p: 3 }}>
@@ -134,15 +142,15 @@ function App() {
                 </Typography>
                 {isVideoEnabled && (
                   <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                    <VideoStream
-                      isStreaming={isStreaming && isVideoEnabled}
-                      serverUrl={serverUrl}
+                    <VideoStream 
+                      isStreaming={isStreaming && isVideoEnabled} 
+                      serverUrl={serverUrl} 
                     />
                   </Box>
                 )}
-                <AudioStream
-                  isStreaming={isStreaming}
-                  isMuted={isMuted}
+                <AudioStream 
+                  isStreaming={isStreaming} 
+                  isMuted={isMuted} 
                   serverUrl={serverUrl}
                 />
               </Stack>
