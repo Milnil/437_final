@@ -31,7 +31,7 @@ class VideoStreamHandler:
             self.clients.remove(websocket)
 
     async def start_server(self):
-        async with serve(self.handle_client, "0.0.0.0", 500):
+        async with serve(self.handle_client, "0.0.0.0", 5002):
             await asyncio.Future()  # run forever
 
     def cleanup(self):

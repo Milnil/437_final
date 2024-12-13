@@ -21,7 +21,7 @@ export const VideoStream: React.FC<VideoStreamProps> = ({ isStreaming, serverUrl
 
     useEffect(() => {
         if (isStreaming && videoRef.current) {
-            const ws = new WebSocket(`${serverUrl.replace('http://', 'ws://')}:500/video`);
+            const ws = new WebSocket(`${serverUrl.replace('http://', 'ws://')}:5002/video`);
 
             ws.onmessage = async (event) => {
                 try {
