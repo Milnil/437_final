@@ -2,6 +2,7 @@ import logging
 import asyncio
 from video_stream import VideoStreamHandler
 from audio_stream import AudioStreamHandler
+from mic_stream import MicStreamHandler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -12,18 +13,20 @@ logger = logging.getLogger(__name__)
 async def main():
     video_handler = VideoStreamHandler()
     audio_handler = AudioStreamHandler()
+    mic_handler = MicStreamHandler()
     
     try:
-        # Start both servers concurrently
         await asyncio.gather(
             video_handler.start_server(),
-            audio_handler.start_server()
+            audio_handler.start_server(),
+            mic_handler.start_server()
         )
     except KeyboardInterrupt:
         logger.info("Shutting down servers...")
     finally:
         video_handler.cleanup()
         audio_handler.cleanup()
+        mic_handler.cleanup()
 
 if __name__ == "__main__":
     try:

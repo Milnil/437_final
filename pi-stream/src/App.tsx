@@ -3,6 +3,7 @@ import styled from '@emotion/styled';
 import { VideoStream } from './components/VideoStream';
 import { AudioStream } from './components/AudioStream';
 import { Controls } from './components/Controls';
+import { PushToTalk } from './components/PushToTalk';
 
 const AppContainer = styled.div`
   font-family: sans-serif;
@@ -58,6 +59,11 @@ const App: React.FC = () => {
         isStreaming={isStreaming}
         isMuted={isMuted}
         serverUrl={serverUrl}
+      />
+
+      <PushToTalk 
+        isEnabled={isStreaming} 
+        serverUrl={serverUrl} 
       />
 
       <Instructions>
