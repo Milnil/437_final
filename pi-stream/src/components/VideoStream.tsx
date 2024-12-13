@@ -6,7 +6,7 @@ const VideoContainer = styled.div`
   width: fit-content;
 `;
 
-const Video = styled.video`
+const Video = styled.img`
   border: 2px solid #333;
   border-radius: 4px;
 `;
@@ -17,25 +17,35 @@ interface VideoStreamProps {
 }
 
 export const VideoStream: React.FC<VideoStreamProps> = ({ isStreaming, serverUrl }) => {
-    const videoRef = useRef<HTMLVideoElement>(null);
+    const imgRef = useRef<HTMLImageElement>(null);
+    const currentBlobUrl = useRef<string | null>(null);
 
     useEffect(() => {
-        if (isStreaming && videoRef.current) {
-            const ws = new WebSocket(`${serverUrl.replace('http://', 'ws://')}:5002/video`);
-
+        if (isStreaming && imgRef.current) {
+            const ws = new WebSocket(`${serverUrl.replace('http://', 'ws://')}:6001/video`);
+            
             ws.onmessage = async (event) => {
                 try {
-                    const blob = new Blob([event.data], { type: 'video/webm' });
-                    if (videoRef.current) {
-                        videoRef.current.src = URL.createObjectURL(blob);
-                        await videoRef.current.play();
+                    const blob = new Blob([event.data], { type: 'image/jpeg' });
+                    if (currentBlobUrl.current) {
+                        URL.revokeObjectURL(currentBlobUrl.current);
+                    }
+                    currentBlobUrl.current = URL.createObjectURL(blob);
+                    if (imgRef.current) {
+                        imgRef.current.src = currentBlobUrl.current;
                     }
                 } catch (error) {
-                    console.error('Error playing video:', error);
+                    console.error('Error displaying frame:', error);
                 }
             };
 
-            return () => ws.close();
+            return () => {
+                ws.close();
+                if (currentBlobUrl.current) {
+                    URL.revokeObjectURL(currentBlobUrl.current);
+                    currentBlobUrl.current = null;
+                }
+            };
         }
     }, [isStreaming, serverUrl]);
 
@@ -44,11 +54,10 @@ export const VideoStream: React.FC<VideoStreamProps> = ({ isStreaming, serverUrl
     return (
         <VideoContainer>
             <Video
-                ref={videoRef}
+                ref={imgRef}
                 width="640"
                 height="480"
-                autoPlay
-                playsInline
+                alt="Video Stream"
             />
         </VideoContainer>
     );

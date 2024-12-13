@@ -6,11 +6,11 @@ export default defineConfig({
   server: {
     proxy: {
       '/ws': {
-        target: 'ws://localhost:5002',
+        target: 'ws://localhost:6002',
         ws: true,
       },
       '/audio': {
-        target: 'ws://localhost:5001',
+        target: 'ws://localhost:6001',
         ws: true,
       }
     }
