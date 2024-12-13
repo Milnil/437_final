@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Raspberry Pi MJPEG + PCM Audio (ScriptProcessorNode)</title>
+    <title>Raspberry Pi AV Stream</title>
     <style>
         body {
             font-family: sans-serif;
@@ -34,12 +34,54 @@
 
         #controls {
             margin: 20px;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
-        #muteButton {
+        .button {
             padding: 10px 20px;
             font-size: 16px;
             cursor: pointer;
+            margin: 0 10px;
+            border: none;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+
+        #startButton {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        #startButton:hover {
+            background-color: #45a049;
+        }
+
+        #muteButton {
+            background-color: #f44336;
+            color: white;
+        }
+
+        #muteButton:hover {
+            background-color: #da190b;
+        }
+
+        #status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .status-connected {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+
+        .status-disconnected {
+            background-color: #f2dede;
+            color: #a94442;
         }
 
         #instructions {
@@ -49,6 +91,7 @@
             background: #fff;
             padding: 20px;
             border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
     </style>
 </head>
@@ -58,37 +101,80 @@
         <h2>Raspberry Pi Streaming</h2>
     </header>
 
-    <h1>Live Video and Audio</h1>
-    <img id="video" src="/video" alt="Video Stream" width="320" height="240" />
-
     <div id="controls">
-        <h3>Audio Controls</h3>
-        <button id="muteButton">Mute</button>
+        <h3>Stream Controls</h3>
+        <button id="startButton" class="button">Start Stream</button>
+        <button id="muteButton" class="button">Mute Audio</button>
+        <div id="status">Click Start Stream to begin</div>
+    </div>
+
+    <div id="videoContainer">
+        <img id="video" src="" alt="Video Stream" width="320" height="240" style="display: none;" />
     </div>
 
     <div id="instructions">
-        <h2>Notes:</h2>
-        <p>This page shows an MJPEG video and uses the deprecated ScriptProcessorNode to play raw PCM audio in near
-            real-time.</p>
-        <p>We have added console logs to verify that audio data is being received. Check your browser's JavaScript
-            console for messages.</p>
-        <p>Click anywhere on the page to start the audio (autoplay policies may require a user interaction).</p>
+        <h2>Instructions:</h2>
+        <ol>
+            <li>Click "Start Stream" to begin both video and audio streams</li>
+            <li>Use "Mute Audio" to toggle audio on/off</li>
+            <li>Check browser console for detailed stream information</li>
+        </ol>
+        <p><strong>Note:</strong> Audio playback requires user interaction due to browser policies.</p>
     </div>
 
     <script>
         const sampleRate = 16000;
         const channels = 1;
-        const bytesPerSample = 2; // 16-bit PCM
+        const bytesPerSample = 2;
         let audioContext;
         let processor;
         let muted = false;
         let buffer = new Uint8Array(0);
+        let streaming = false;
 
+        const startButton = document.getElementById('startButton');
         const muteButton = document.getElementById('muteButton');
+        const videoElement = document.getElementById('video');
+        const statusDiv = document.getElementById('status');
+
+        startButton.addEventListener('click', async () => {
+            if (!streaming) {
+                streaming = true;
+                startButton.textContent = 'Stop Stream';
+                statusDiv.textContent = 'Connecting...';
+                
+                // Start video
+                videoElement.style.display = 'block';
+                videoElement.src = '/video';
+                
+                // Start audio
+                try {
+                    await startAudio();
+                    statusDiv.textContent = 'Connected: Streaming audio and video';
+                    statusDiv.className = 'status-connected';
+                } catch (error) {
+                    console.error('Failed to start audio:', error);
+                    statusDiv.textContent = 'Error: Audio stream failed to start';
+                    statusDiv.className = 'status-disconnected';
+                }
+            } else {
+                streaming = false;
+                startButton.textContent = 'Start Stream';
+                videoElement.style.display = 'none';
+                videoElement.src = '';
+                if (audioContext) {
+                    await audioContext.close();
+                    audioContext = null;
+                }
+                statusDiv.textContent = 'Stream stopped';
+                statusDiv.className = '';
+            }
+        });
+
         muteButton.addEventListener('click', () => {
             muted = !muted;
-            muteButton.textContent = muted ? 'Unmute' : 'Mute';
-            console.log(`Audio is now ${muted ? 'muted' : 'unmuted'}.`);
+            muteButton.textContent = muted ? 'Unmute Audio' : 'Mute Audio';
+            console.log(`Audio is now ${muted ? 'muted' : 'unmuted'}`);
         });
 
         async function startAudio() {
@@ -106,15 +192,13 @@
                 let neededBytes = neededSamples * bytesPerSample;
 
                 if (muted || buffer.length < neededBytes) {
-                    // Not enough data or muted, fill with silence
                     output.fill(0);
                     if (!muted && buffer.length < neededBytes) {
-                        console.log(`Not enough data to fill audio buffer (have ${buffer.length} bytes, need ${neededBytes} bytes).`);
+                        console.log(`Buffer underrun: have ${buffer.length}, need ${neededBytes} bytes`);
                     }
                     return;
                 }
 
-                // Extract needed bytes from buffer
                 const chunk = buffer.slice(0, neededBytes);
                 buffer = buffer.slice(neededBytes);
 
@@ -125,49 +209,24 @@
                 }
             };
 
-            // Start fetching audio data
-            console.log("Fetching audio data from /audio...");
-            const response = await fetch('/audio').catch(err => {
-                console.error('Fetch error:', err);
-            });
-            if (!response || !response.ok) {
-                console.error('Failed to fetch audio stream', response);
-                return;
-            }
-
-            if (!response.ok) {
-                console.error('Failed to fetch audio stream');
-                return;
-            }
-            console.log("Successfully connected to /audio stream.");
-
+            console.log("Fetching audio stream...");
+            const response = await fetch('/audio');
+            if (!response.ok) throw new Error('Failed to fetch audio stream');
+            
+            console.log("Connected to audio stream");
             const reader = response.body.getReader();
 
-            while (true) {
+            while (streaming) {
                 const { value, done } = await reader.read();
-                if (done) {
-                    console.log("Audio stream ended.");
-                    break;
-                }
+                if (done) break;
                 if (value) {
-                    console.log(`Received audio data chunk of length: ${value.length} bytes`);
-                    // Append new data
                     let newBuffer = new Uint8Array(buffer.length + value.length);
                     newBuffer.set(buffer, 0);
                     newBuffer.set(value, buffer.length);
                     buffer = newBuffer;
-                    console.log(`Buffer size after appending: ${buffer.length} bytes`);
                 }
             }
         }
-
-        // Start audio on user interaction (autoplay policy)
-        document.addEventListener('click', () => {
-            if (!audioContext || audioContext.state !== 'running') {
-                console.log("User clicked on the page. Starting audio...");
-                startAudio();
-            }
-        }, { once: true });
     </script>
 </body>
 
