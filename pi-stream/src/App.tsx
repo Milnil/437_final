@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell, Camera, Video, VideoOff, Mic, MicOff, Volume2, VolumeX, MoreVertical, History, Bug, Circle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -340,11 +340,21 @@ const App = () => {
 
                     {isStreaming ? (
                       isVideoEnabled ? (
-                        <VideoStream
-                          isStreaming={isStreaming && isVideoEnabled}
-                          serverUrl={serverUrl}
-                          className="w-full h-full object-contain"
-                        />
+                        <>
+                          <VideoStream
+                            isStreaming={isStreaming && isVideoEnabled}
+                            serverUrl={serverUrl}
+                            className="w-full h-full object-contain"
+                          />
+                          <AudioStream
+                            isStreaming={isStreaming && !isMuted}
+                            serverUrl={serverUrl}
+                          />
+                          <MicrophoneStream
+                            isStreaming={isStreaming && isMicEnabled}
+                            serverUrl={serverUrl}
+                          />
+                        </>
                       ) : (
                         <div className="flex items-center justify-center h-full">
                           <VideoOff className="h-12 w-12 text-gray-400" />
