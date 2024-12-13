@@ -10,6 +10,7 @@ import os
 import pyaudio
 import ssl
 import wave
+import queue
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -22,6 +23,7 @@ class MJPEGHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-type', 'multipart/x-mixed-replace; boundary=frame')
             self.end_headers()
+            logging.info(f"WOOOOOOOOOOO")
 
             while True:
                 if not self.server.running:
