@@ -115,11 +115,12 @@
     <div id="instructions">
         <h2>Instructions:</h2>
         <ol>
-            <li>Click "Start Stream" to begin both video and audio streams simultaneously.</li>
+            <li>Click "Start Stream" to begin both video and audio simultaneously.</li>
             <li>Use "Mute Audio" to toggle audio on/off.</li>
-            <li>Check browser console for detailed stream information.</li>
+            <li>Check browser console for debug info.</li>
         </ol>
-        <p><strong>Note:</strong> Audio playback requires user interaction due to browser policies.</p>
+        <p><strong>Note:</strong> Audio playback requires direct user interaction. Ensure you click the button to start
+            the stream.</p>
     </div>
 
     <script>
@@ -131,6 +132,7 @@
         let muted = false;
         let buffer = new Uint8Array(0);
         let streaming = false;
+        let abortController;
 
         const startButton = document.getElementById('startButton');
         const muteButton = document.getElementById('muteButton');
@@ -142,32 +144,69 @@
                 streaming = true;
                 startButton.textContent = 'Stop Stream';
                 statusDiv.textContent = 'Connecting...';
+                statusDiv.className = '';
+
+                // User gesture event: create and resume AudioContext here
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
+                    console.log("AudioContext created with sampleRate:", sampleRate);
+                }
+
+                // Resume the audio context right away to comply with autoplay policies
+                audioContext.resume().then(() => {
+                    console.log("AudioContext resumed");
+                });
+
+                // Set up ScriptProcessorNode in user gesture
+                processor = audioContext.createScriptProcessor(4096, 0, channels);
+                processor.connect(audioContext.destination);
+                processor.onaudioprocess = handleAudioProcess;
 
                 // Start video immediately
                 videoElement.style.display = 'block';
                 videoElement.src = '/video';
+                console.log("Video stream started.");
 
-                // Start audio in parallel (no await)
-                startAudio().then(() => {
-                    console.log("Audio streaming started successfully.");
-                    statusDiv.textContent = 'Connected: Streaming audio and video';
-                    statusDiv.className = 'status-connected';
-                }).catch((error) => {
-                    console.error('Failed to start audio:', error);
-                    statusDiv.textContent = 'Error: Audio stream failed to start';
-                    statusDiv.className = 'status-disconnected';
-                });
+                // Start fetching audio in parallel
+                abortController = new AbortController();
+                startAudioFetch(abortController.signal)
+                    .then(() => {
+                        console.log("Audio stream ended normally.");
+                    })
+                    .catch(err => {
+                        console.error("Audio stream error:", err);
+                        if (streaming) {
+                            statusDiv.textContent = 'Error: Audio stream failed';
+                            statusDiv.className = 'status-disconnected';
+                        }
+                    });
+
+                statusDiv.textContent = 'Connected: Streaming audio and video';
+                statusDiv.className = 'status-connected';
 
             } else {
                 // Stop streaming
                 streaming = false;
                 startButton.textContent = 'Start Stream';
+
+                // Stop video
                 videoElement.style.display = 'none';
                 videoElement.src = '';
-                if (audioContext) {
-                    audioContext.close();
-                    audioContext = null;
+
+                // Stop audio fetching
+                if (abortController) {
+                    abortController.abort();
                 }
+
+                // Close audio context if open
+                if (audioContext && audioContext.state !== 'closed') {
+                    audioContext.close().then(() => {
+                        console.log("AudioContext closed");
+                        audioContext = null;
+                    });
+                }
+
+                buffer = new Uint8Array(0);
                 statusDiv.textContent = 'Stream stopped';
                 statusDiv.className = '';
                 console.log("Streaming stopped.");
@@ -180,40 +219,32 @@
             console.log(`Audio is now ${muted ? 'muted' : 'unmuted'}`);
         });
 
-        async function startAudio() {
-            if (!audioContext) {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
-                console.log("Created new AudioContext with sampleRate:", sampleRate);
+        function handleAudioProcess(audioEvent) {
+            const output = audioEvent.outputBuffer.getChannelData(0);
+            const neededSamples = output.length;
+            const neededBytes = neededSamples * bytesPerSample;
+
+            if (muted || buffer.length < neededBytes) {
+                output.fill(0);
+                if (!muted && buffer.length < neededBytes) {
+                    console.log(`Buffer underrun: have ${buffer.length} bytes, need ${neededBytes} bytes`);
+                }
+                return;
             }
 
-            processor = audioContext.createScriptProcessor(4096, 0, channels);
-            processor.connect(audioContext.destination);
+            const chunk = buffer.slice(0, neededBytes);
+            buffer = buffer.slice(neededBytes);
 
-            processor.onaudioprocess = (audioEvent) => {
-                let output = audioEvent.outputBuffer.getChannelData(0);
-                let neededSamples = output.length;
-                let neededBytes = neededSamples * bytesPerSample;
+            const dataView = new DataView(chunk.buffer);
+            for (let i = 0; i < neededSamples; i++) {
+                let sample = dataView.getInt16(i * 2, true);
+                output[i] = sample / 32768.0;
+            }
+        }
 
-                if (muted || buffer.length < neededBytes) {
-                    output.fill(0);
-                    if (!muted && buffer.length < neededBytes) {
-                        console.log(`Buffer underrun: have ${buffer.length} bytes, need ${neededBytes} bytes`);
-                    }
-                    return;
-                }
-
-                const chunk = buffer.slice(0, neededBytes);
-                buffer = buffer.slice(neededBytes);
-
-                const dataView = new DataView(chunk.buffer);
-                for (let i = 0; i < neededSamples; i++) {
-                    let sample = dataView.getInt16(i * 2, true);
-                    output[i] = sample / 32768.0;
-                }
-            };
-
+        async function startAudioFetch(signal) {
             console.log("Fetching audio stream...");
-            const response = await fetch('/audio');
+            const response = await fetch('/audio', { signal });
             if (!response.ok) throw new Error('Failed to fetch audio stream');
 
             console.log("Connected to audio stream");
@@ -222,7 +253,7 @@
             while (streaming) {
                 const { value, done } = await reader.read();
                 if (done) {
-                    console.log("Audio stream ended.");
+                    console.log("No more audio data from server.");
                     break;
                 }
                 if (value) {
