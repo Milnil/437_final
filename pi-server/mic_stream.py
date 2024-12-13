@@ -4,6 +4,7 @@ import logging
 import pyaudio
 import numpy as np
 import time
+import queue
 
 logger = logging.getLogger(__name__)
 
@@ -14,8 +15,11 @@ class MicStreamHandler:
         # Audio settings
         self.sample_rate = 44100
         self.channels = 1
-        self.chunk_size = 1024
+        self.chunk_size = 4096  # Increased buffer size
         self.format = pyaudio.paInt16
+        
+        # Audio buffer
+        self.buffer = queue.Queue(maxsize=10)  # Limit buffer size
         
         logger.info("Initializing PyAudio for speaker output...")
         self.p = pyaudio.PyAudio()
@@ -37,12 +41,28 @@ class MicStreamHandler:
                 channels=self.channels,
                 rate=self.sample_rate,
                 output=True,
-                frames_per_buffer=self.chunk_size
+                frames_per_buffer=self.chunk_size,
+                stream_callback=self._audio_callback
             )
+            self.stream.start_stream()
             logger.info(f"Started audio output stream: rate={self.sample_rate}Hz, channels={self.channels}, format={self.format}")
         except Exception as e:
             logger.error(f"Failed to start audio output stream: {e}")
             raise
+
+    def _audio_callback(self, in_data, frame_count, time_info, status):
+        try:
+            data = self.buffer.get_nowait()
+            return (data, pyaudio.paContinue)
+        except queue.Empty:
+            return (b'\x00' * self.chunk_size * 2, pyaudio.paContinue)
+
+    def clear_buffer(self):
+        while not self.buffer.empty():
+            try:
+                self.buffer.get_nowait()
+            except queue.Empty:
+                break
 
     async def handle_client(self, websocket):
         client_id = id(websocket)
@@ -52,6 +72,8 @@ class MicStreamHandler:
             
             if not self.stream:
                 self.start_audio_output()
+            else:
+                self.clear_buffer()  # Clear buffer when new client connects
             
             start_time = time.time()
             frames_received = 0
@@ -61,14 +83,16 @@ class MicStreamHandler:
                     data = await websocket.recv()
                     frames_received += 1
                     
-                    if frames_received % 100 == 0:  # Log every 100 frames
+                    if frames_received % 100 == 0:
                         elapsed = time.time() - start_time
                         rate = frames_received / elapsed
                         logger.debug(f"Receiving from client [ID: {client_id}] at {rate:.2f} fps")
-                        logger.debug(f"Received audio chunk of size: {len(data)} bytes")
                     
-                    if self.stream:
-                        self.stream.write(data)
+                    try:
+                        self.buffer.put_nowait(data)
+                    except queue.Full:
+                        self.clear_buffer()  # Clear buffer if it gets full
+                        self.buffer.put_nowait(data)
                     
                 except Exception as e:
                     logger.error(f"Error processing audio from client [ID: {client_id}]: {e}")
@@ -80,7 +104,8 @@ class MicStreamHandler:
             self.clients.remove(websocket)
             logger.info(f"Microphone client disconnected [ID: {client_id}]. Remaining clients: {len(self.clients)}")
             
-            if not self.clients and self.stream:
+            if not self.clients:
+                self.clear_buffer()
                 self.cleanup()
 
     async def start_server(self):
@@ -89,6 +114,7 @@ class MicStreamHandler:
             await asyncio.Future()
 
     def cleanup(self):
+        self.clear_buffer()
         if self.stream:
             self.stream.stop_stream()
             self.stream.close()

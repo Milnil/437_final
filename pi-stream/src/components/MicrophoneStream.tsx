@@ -21,36 +21,28 @@ export const MicrophoneStream: React.FC<MicrophoneStreamProps> = ({
 
         const startMicrophone = async () => {
             try {
-                // Get microphone access
                 mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 
-                // Setup WebSocket connection
                 const ws = new WebSocket(`ws://${serverUrl}:5003/mic`);
                 websocketRef.current = ws;
 
                 ws.onopen = () => {
                     console.log('Microphone WebSocket connected');
                     
-                    // Initialize audio processing
                     audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({
-                        sampleRate: 44100,  // Match Pi's sample rate
+                        sampleRate: 44100,
                     });
 
-                    // Create audio source from microphone
                     streamNodeRef.current = audioContextRef.current.createMediaStreamSource(mediaStream!);
                     
-                    // Create script processor for raw audio access
-                    processorNodeRef.current = audioContextRef.current.createScriptProcessor(1024, 1, 1);
+                    processorNodeRef.current = audioContextRef.current.createScriptProcessor(4096, 1, 1);
                     
-                    // Process audio data
                     processorNodeRef.current.onaudioprocess = (e) => {
-                        if (ws.readyState === WebSocket.OPEN) {
+                        if (ws.readyState === WebSocket.OPEN && isStreaming && isMicEnabled) {
                             const inputData = e.inputBuffer.getChannelData(0);
-                            
-                            // Convert Float32Array to Int16Array
                             const int16Data = new Int16Array(inputData.length);
+                            
                             for (let i = 0; i < inputData.length; i++) {
-                                // Convert float to int16
                                 const s = Math.max(-1, Math.min(1, inputData[i]));
                                 int16Data[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                             }
@@ -59,7 +51,6 @@ export const MicrophoneStream: React.FC<MicrophoneStreamProps> = ({
                         }
                     };
 
-                    // Connect the audio nodes
                     streamNodeRef.current.connect(processorNodeRef.current);
                     processorNodeRef.current.connect(audioContextRef.current.destination);
                 };
@@ -89,14 +80,14 @@ export const MicrophoneStream: React.FC<MicrophoneStreamProps> = ({
                 streamNodeRef.current = null;
             }
 
+            if (websocketRef.current && websocketRef.current.readyState === WebSocket.OPEN) {
+                websocketRef.current.close();
+                websocketRef.current = null;
+            }
+
             if (audioContextRef.current) {
                 audioContextRef.current.close();
                 audioContextRef.current = null;
-            }
-
-            if (websocketRef.current) {
-                websocketRef.current.close();
-                websocketRef.current = null;
             }
 
             if (mediaStream) {
