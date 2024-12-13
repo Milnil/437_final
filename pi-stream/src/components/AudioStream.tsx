@@ -15,16 +15,28 @@ export const AudioStream: React.FC<AudioStreamProps> = ({ isStreaming, isMuted, 
     useEffect(() => {
         if (isStreaming) {
             try {
-                const wsUrl = `${serverUrl.replace('http://', 'ws://')}:5002/audio`;
+                const wsUrl = `ws://${serverUrl}:5002/audio`;
+                console.log('Attempting to connect to:', wsUrl);
                 websocketRef.current = new WebSocket(wsUrl);
                 websocketRef.current.binaryType = 'arraybuffer';
 
                 let firstMessage = true;
 
+                websocketRef.current.onopen = () => {
+                    console.log('Audio WebSocket connection established');
+                };
+
+                websocketRef.current.onerror = (error) => {
+                    console.error('Audio WebSocket error:', error);
+                };
+
+                websocketRef.current.onclose = () => {
+                    console.log('Audio WebSocket connection closed');
+                };
+
                 websocketRef.current.onmessage = async (event) => {
                     if (isMuted) return;
 
-                    // First message contains the sample rate
                     if (firstMessage) {
                         sampleRateRef.current = parseInt(new TextDecoder().decode(event.data));
                         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({
@@ -40,20 +52,18 @@ export const AudioStream: React.FC<AudioStreamProps> = ({ isStreaming, isMuted, 
                     try {
                         const audioData = new Int16Array(event.data);
                         const floatData = new Float32Array(audioData.length);
-
-                        // Convert Int16 to normalized Float32
+                        
                         for (let i = 0; i < audioData.length; i++) {
                             floatData[i] = audioData[i] / 32768.0;
                         }
 
                         const buffer = audioContextRef.current.createBuffer(
-                            1, // mono
+                            1,
                             floatData.length,
                             sampleRateRef.current
                         );
                         buffer.getChannelData(0).set(floatData);
 
-                        // Stop previous source if it exists
                         if (bufferSourceRef.current) {
                             bufferSourceRef.current.stop();
                         }
@@ -62,16 +72,10 @@ export const AudioStream: React.FC<AudioStreamProps> = ({ isStreaming, isMuted, 
                         bufferSourceRef.current.buffer = buffer;
                         bufferSourceRef.current.connect(audioContextRef.current.destination);
                         bufferSourceRef.current.start();
-
                     } catch (error) {
                         console.error('Error processing audio:', error);
                     }
                 };
-
-                websocketRef.current.onerror = (error) => {
-                    console.error('WebSocket error:', error);
-                };
-
             } catch (error) {
                 console.error('Error initializing audio:', error);
             }
@@ -83,6 +87,7 @@ export const AudioStream: React.FC<AudioStreamProps> = ({ isStreaming, isMuted, 
                 bufferSourceRef.current = null;
             }
             if (websocketRef.current) {
+                console.log('Closing audio WebSocket connection');
                 websocketRef.current.close();
                 websocketRef.current = null;
             }
@@ -91,14 +96,7 @@ export const AudioStream: React.FC<AudioStreamProps> = ({ isStreaming, isMuted, 
                 audioContextRef.current = null;
             }
         };
-    }, [isStreaming, serverUrl]);
-
-    // Handle mute/unmute
-    useEffect(() => {
-        if (audioContextRef.current) {
-            audioContextRef.current.resume();
-        }
-    }, [isMuted]);
+    }, [isStreaming, serverUrl, isMuted]);
 
     return null;
 };

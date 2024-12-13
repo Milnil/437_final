@@ -34,7 +34,7 @@ const App: React.FC = () => {
   const [isMuted, setIsMuted] = useState(false);
 
   // Update this with your Raspberry Pi's IP address
-  const serverUrl = '0.0.0.0';
+  const serverUrl = '192.168.10.59';
 
   return (
     <AppContainer>
