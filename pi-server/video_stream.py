@@ -4,7 +4,7 @@ from picamera2 import Picamera2
 import io
 import numpy as np
 from websockets.server import serve
-from PIL import Image
+import cv2  # Add cv2 for image conversion
 import logging
 
 logger = logging.getLogger(__name__)
@@ -25,14 +25,11 @@ class VideoStreamHandler:
             self.clients.add(websocket)
             logger.info("New video client connected")
             while True:
-                # Capture frame and convert to JPEG
+                # Capture frame and convert to JPEG using cv2
                 frame = self.picam2.capture_array()
-                # Convert numpy array to PIL Image
-                img = Image.fromarray(frame)
-                # Convert to JPEG bytes
-                img_byte_arr = io.BytesIO()
-                img.save(img_byte_arr, format='JPEG', quality=85)
-                await websocket.send(img_byte_arr.getvalue())
+                ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                if ret:
+                    await websocket.send(jpeg.tobytes())
                 await asyncio.sleep(0.033)  # ~30fps
         except Exception as e:
             logger.error(f"Video client error: {e}")
@@ -41,7 +38,7 @@ class VideoStreamHandler:
             logger.info("Video client disconnected")
 
     async def start_server(self):
-        async with serve(self.handle_client, "0.0.0.0", 5001):  # Changed port to 5001
+        async with serve(self.handle_client, "0.0.0.0", 5001):
             logger.info("Video server started on ws://0.0.0.0:5001")
             await asyncio.Future()
 
