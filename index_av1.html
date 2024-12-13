@@ -37,7 +37,7 @@
             padding: 20px;
             background: #fff;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .button {
@@ -91,7 +91,7 @@
             background: #fff;
             padding: 20px;
             border-radius: 4px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
     </style>
 </head>
@@ -115,12 +115,11 @@
     <div id="instructions">
         <h2>Instructions:</h2>
         <ol>
-            <li>Click "Start Stream" to begin both video and audio simultaneously.</li>
-            <li>Use "Mute Audio" to toggle audio on/off.</li>
-            <li>Check browser console for debug info.</li>
+            <li>Click "Start Stream" to begin both video and audio streams</li>
+            <li>Use "Mute Audio" to toggle audio on/off</li>
+            <li>Check browser console for detailed stream information</li>
         </ol>
-        <p><strong>Note:</strong> Audio playback requires direct user interaction. Ensure you click the button to start
-            the stream.</p>
+        <p><strong>Note:</strong> Audio playback requires user interaction due to browser policies.</p>
     </div>
 
     <script>
@@ -138,69 +137,37 @@
         const videoElement = document.getElementById('video');
         const statusDiv = document.getElementById('status');
 
-        startButton.addEventListener('click', () => {
+        startButton.addEventListener('click', async () => {
             if (!streaming) {
                 streaming = true;
                 startButton.textContent = 'Stop Stream';
                 statusDiv.textContent = 'Connecting...';
-                statusDiv.className = '';
-
-                // User gesture: create and resume audio context here
-                if (!audioContext) {
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
-                    console.log("AudioContext created:", audioContext);
-                }
-
-                // Resume immediately in user gesture to allow audio playback
-                audioContext.resume().then(() => {
-                    console.log("AudioContext resumed");
-                });
-
-                // Set up ScriptProcessorNode
-                processor = audioContext.createScriptProcessor(4096, 0, channels);
-                processor.connect(audioContext.destination);
-                processor.onaudioprocess = handleAudioProcess;
-
-                // Start video first
+                
+                // Start video
                 videoElement.style.display = 'block';
                 videoElement.src = '/video';
-                console.log("Video stream started:", videoElement.src);
-
-                // Start audio fetch in parallel (no await)
-                startAudioFetch().then(() => {
-                    console.log("Audio stream ended normally.");
-                }).catch(err => {
-                    console.error("Audio stream error:", err);
-                    if (streaming) {
-                        statusDiv.textContent = 'Error: Audio stream failed';
-                        statusDiv.className = 'status-disconnected';
-                    }
-                });
-
-                statusDiv.textContent = 'Connected: Streaming audio and video';
-                statusDiv.className = 'status-connected';
-
+                
+                // Start audio
+                try {
+                    await startAudio();
+                    statusDiv.textContent = 'Connected: Streaming audio and video';
+                    statusDiv.className = 'status-connected';
+                } catch (error) {
+                    console.error('Failed to start audio:', error);
+                    statusDiv.textContent = 'Error: Audio stream failed to start';
+                    statusDiv.className = 'status-disconnected';
+                }
             } else {
-                // Stop streaming
                 streaming = false;
                 startButton.textContent = 'Start Stream';
-
-                // Stop video
                 videoElement.style.display = 'none';
                 videoElement.src = '';
-
-                // Close audio context if open
-                if (audioContext && audioContext.state !== 'closed') {
-                    audioContext.close().then(() => {
-                        console.log("AudioContext closed");
-                        audioContext = null;
-                    });
+                if (audioContext) {
+                    await audioContext.close();
+                    audioContext = null;
                 }
-
-                buffer = new Uint8Array(0);
                 statusDiv.textContent = 'Stream stopped';
                 statusDiv.className = '';
-                console.log("Streaming stopped.");
             }
         });
 
@@ -210,43 +177,48 @@
             console.log(`Audio is now ${muted ? 'muted' : 'unmuted'}`);
         });
 
-        function handleAudioProcess(audioEvent) {
-            const output = audioEvent.outputBuffer.getChannelData(0);
-            const neededSamples = output.length;
-            const neededBytes = neededSamples * bytesPerSample;
+        async function startAudio() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
+                console.log("Created new AudioContext with sampleRate:", sampleRate);
+            }
 
-            if (muted || buffer.length < neededBytes) {
-                output.fill(0);
-                if (!muted && buffer.length < neededBytes) {
-                    console.log(`Buffer underrun: have ${buffer.length} bytes, need ${neededBytes} bytes`);
+            processor = audioContext.createScriptProcessor(4096, 0, channels);
+            processor.connect(audioContext.destination);
+
+            processor.onaudioprocess = (audioEvent) => {
+                let output = audioEvent.outputBuffer.getChannelData(0);
+                let neededSamples = output.length;
+                let neededBytes = neededSamples * bytesPerSample;
+
+                if (muted || buffer.length < neededBytes) {
+                    output.fill(0);
+                    if (!muted && buffer.length < neededBytes) {
+                        console.log(`Buffer underrun: have ${buffer.length}, need ${neededBytes} bytes`);
+                    }
+                    return;
                 }
-                return;
-            }
 
-            const chunk = buffer.slice(0, neededBytes);
-            buffer = buffer.slice(neededBytes);
+                const chunk = buffer.slice(0, neededBytes);
+                buffer = buffer.slice(neededBytes);
 
-            const dataView = new DataView(chunk.buffer);
-            for (let i = 0; i < neededSamples; i++) {
-                let sample = dataView.getInt16(i * 2, true);
-                output[i] = sample / 32768.0;
-            }
-        }
+                const dataView = new DataView(chunk.buffer);
+                for (let i = 0; i < neededSamples; i++) {
+                    let sample = dataView.getInt16(i * 2, true);
+                    output[i] = sample / 32768.0;
+                }
+            };
 
-        async function startAudioFetch() {
             console.log("Fetching audio stream...");
             const response = await fetch('/audio');
             if (!response.ok) throw new Error('Failed to fetch audio stream');
-
+            
             console.log("Connected to audio stream");
             const reader = response.body.getReader();
 
             while (streaming) {
                 const { value, done } = await reader.read();
-                if (done) {
-                    console.log("No more audio data from server.");
-                    break;
-                }
+                if (done) break;
                 if (value) {
                     let newBuffer = new Uint8Array(buffer.length + value.length);
                     newBuffer.set(buffer, 0);
