@@ -18,7 +18,7 @@ class VideoStreamHandler:
             controls={"FrameDurationLimits": (33333, 33333),
                       "AwbMode" : 0
             },  # ~30fps
-        colour_space=ColorSpace.Rec709()  # Use Rec.709 color space
+        colour_space=ColorSpace.Smpte170m()  # Use Rec.709 color space
         )
         self.picam2.configure(self.config)
         self.picam2.start()
