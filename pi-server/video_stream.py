@@ -6,6 +6,7 @@ import numpy as np
 from websockets.server import serve
 import cv2  # Add cv2 for image conversion
 import logging
+from libcamera import ColorSpace
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +15,9 @@ class VideoStreamHandler:
         self.picam2 = Picamera2()
         self.config = self.picam2.create_video_configuration(
             main={"size": (640, 480)},
-            controls={"FrameDurationLimits": (33333, 33333),
-                      "AwbMode": "auto"}  # ~30fps
-
+            controls={"FrameDurationLimits": (33333, 33333)
+            },  # ~30fps
+        colour_space=ColorSpace.Rec709()  # Use Rec.709 color space
         )
         self.picam2.configure(self.config)
         self.picam2.start()
