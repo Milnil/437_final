@@ -20,7 +20,7 @@ const Canvas = styled.canvas`
 interface VideoStreamProps {
     isStreaming: boolean;
     serverUrl: string;
-    onPersonDetected: (notification: Notification) => void; 
+    onPersonDetected: (notification: Notification) => void; // Callback to notify other components
 }
 
 interface Notification {
@@ -38,7 +38,6 @@ export const VideoStream: React.FC<VideoStreamProps> = ({ isStreaming, serverUrl
     const frameCounterRef = useRef(0);
     const lastPredictionTimeRef = useRef(Date.now());
     const [isModelLoaded, setIsModelLoaded] = useState(false);
-    const frameBufferRef = useRef<Blob[]>([]);
 
     useEffect(() => {
         const initializeModels = async () => {
@@ -63,7 +62,7 @@ export const VideoStream: React.FC<VideoStreamProps> = ({ isStreaming, serverUrl
             console.log('MobileNet model loaded successfully');
         };
 
-        initializeModels();
+        initializeModels(); // Ensure model is initialized as soon as component mounts
 
         return () => {
             if (wsRef.current) {
@@ -75,6 +74,7 @@ export const VideoStream: React.FC<VideoStreamProps> = ({ isStreaming, serverUrl
 
     useEffect(() => {
         if (isStreaming && isModelLoaded) {
+            console.log('Starting WebSocket connection...');
             wsRef.current = new WebSocket(`ws://${serverUrl}:5001/video`);
             
             wsRef.current.onopen = () => {
@@ -91,22 +91,19 @@ export const VideoStream: React.FC<VideoStreamProps> = ({ isStreaming, serverUrl
             
             wsRef.current.onmessage = async (event) => {
                 try {
+                    console.log('Frame received from WebSocket');
                     const blob = new Blob([event.data], { type: 'image/jpeg' });
                     const imageBitmap = await createImageBitmap(blob);
                     const canvasCtx = canvasRef.current!.getContext('2d');
                     if (canvasCtx) {
                         canvasCtx.drawImage(imageBitmap, 0, 0, canvasRef.current!.width, canvasRef.current!.height);
                     }
-                    
-                    frameBufferRef.current.push(blob);
-                    if (frameBufferRef.current.length > 120) { // 4 seconds at 30 fps
-                        frameBufferRef.current.shift();
-                    }
 
                     frameCounterRef.current++;
                     const currentTime = Date.now();
 
                     if (frameCounterRef.current % 10 === 0 && isModelLoaded && currentTime - lastPredictionTimeRef.current > 5000) {
+                        console.log('Running image classification...');
                         lastPredictionTimeRef.current = currentTime;
                         await classifyImage(imageBitmap);
                     }
@@ -132,14 +129,17 @@ export const VideoStream: React.FC<VideoStreamProps> = ({ isStreaming, serverUrl
 
         try {
             const imgTensor = tf.browser.fromPixels(imageBitmap).resizeNearestNeighbor([224, 224]).toFloat().expandDims();
+            console.log('Running prediction on image...');
             const predictions = await modelRef.current.classify(imgTensor);
+            console.log('Predictions: ', predictions);
 
-            const personKeywords = ['person', 'human', 'man', 'woman', 'boy', 'girl', 'adult', 'child', 'people'];
+            const personKeywords = ['person', 'human', 'man', 'woman', 'boy', 'girl', 'adult', 'child', 'kid', 'people', 'gaskmask', 'mask', 'gas helmet', 'sweatshirt','pants', 'shirt', 'sunglasses', 'dark glasses', 'shades', 'wig'];
             const personDetected = predictions.some(prediction => 
                 personKeywords.some(keyword => prediction.className.toLowerCase().includes(keyword))
             );
 
             if (personDetected) {
+                console.log('Person detected!');
                 const notification: Notification = {
                     id: Date.now(),
                     type: 'person-detected',
@@ -147,28 +147,15 @@ export const VideoStream: React.FC<VideoStreamProps> = ({ isStreaming, serverUrl
                     message: 'Person detected in video footage',
                     date: new Date().toLocaleDateString(),
                 };
+                console.log('Notification created: ', notification);
                 onPersonDetected(notification);
-                
-                const videoData = new Blob(frameBufferRef.current, { type: 'video/mp4' });
-                const formData = new FormData();
-                formData.append('video', videoData, `${Date.now()}.mp4`);
-                
-                try {
-                    await fetch(`ws://${serverUrl}:5004`, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    console.log('Video sent to backend for storage.');
-                } catch (error) {
-                    console.error('Failed to send video to backend:', error);
-                }
             }
 
-            imgTensor.dispose();
+            imgTensor.dispose(); // Clean up the tensor to free memory
         } catch (error) {
             console.error('Error during image classification:', error);
         }
-    }, [onPersonDetected, serverUrl]);
+    }, [onPersonDetected]);
 
     if (!isStreaming) return null;
 
