@@ -110,6 +110,15 @@ const App = () => {
     setIsStreaming(!isStreaming);
   };
 
+  const handlePersonDetected = (notification) => {
+    setNotifications(prev => {
+      const updated = [notification, ...prev];
+      localStorage.setItem('doorbell-notifications', JSON.stringify(updated));
+      console.log('Person detected notification added:', notification);
+      return updated;
+    });
+  };
+
   const handleMotionDetection = () => {
     // Create new notification
     const newNotification = {
@@ -344,6 +353,7 @@ const App = () => {
                           <VideoStream
                             isStreaming={isStreaming && isVideoEnabled}
                             serverUrl={serverUrl}
+                            onPersonDetected={handlePersonDetected}
                             className="w-full h-full object-contain"
                           />
                           <AudioStream
