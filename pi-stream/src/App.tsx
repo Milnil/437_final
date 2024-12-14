@@ -110,22 +110,74 @@ const App = () => {
     setIsStreaming(!isStreaming);
   };
 
-  const handlePersonDetected = (notification) => {
-    setNotifications(prev => {
-      const updated = [notification, ...prev];
-      localStorage.setItem('doorbell-notifications', JSON.stringify(updated));
-      console.log('Person detected notification added:', notification);
-      return updated;
-    });
+  const handlePersonDetected = (notification, serverUrl) => {
+      setNotifications(prev => {
+          const updated = [notification, ...prev];
+          localStorage.setItem('doorbell-notifications', JSON.stringify(updated));
+          console.log('Person detected notification added:', notification);
+          return updated;
+      });
+
+      const recordingStartTime = new Date();
+      const recordingDuration = 4000; 
+
+      setTimeout(() => {
+          const endTime = new Date();
+          const duration = Math.round((endTime.getTime() - recordingStartTime.getTime()) / 1000);
+
+          const getVideoClipBlob = async () => {
+              try {
+                  const response = await fetch(`ws://${serverUrl}:5004/videos/${notification.id}.mp4`);
+                  if (!response.ok) {
+                      throw new Error('Failed to fetch video from backend');
+                  }
+                  const blob = await response.blob();
+                  return blob;
+              } catch (error) {
+                  console.error('Error fetching video clip:', error);
+                  return null;
+              }
+          };
+
+          getVideoClipBlob().then(videoBlob => {
+              if (videoBlob) {
+                  const fileName = `notification_${notification.id}.mp4`;
+                  const file = new File([videoBlob], fileName, { type: 'video/mp4' });
+
+                  const formData = new FormData();
+                  formData.append('file', file);
+
+                  fetch(`ws://${serverUrl}:5004/save-video`, {
+                      method: 'POST',
+                      body: formData
+                  }).then(response => response.json()).then(data => {
+                      console.log('File saved successfully:', data);
+                  }).catch(error => {
+                      console.error('Error saving file:', error);
+                  });
+              }
+          });
+      }, recordingDuration);
   };
 
-  const handleRemoveNotification = (id) => {
-    setNotifications(prev => {
-      const updated = prev.filter(notification => notification.id !== id);
-      localStorage.setItem('doorbell-notifications', JSON.stringify(updated));
-      return updated;
-    });
+  const handleRemoveNotification = (id, serverUrl) => {
+      setNotifications(prev => {
+          const updated = prev.filter(notification => notification.id !== id);
+          localStorage.setItem('doorbell-notifications', JSON.stringify(updated));
+
+          const fileName = `notification_${id}.mp4`;
+          fetch(`ws://${serverUrl}:5004/delete-video?fileName=${encodeURIComponent(fileName)}`, {
+              method: 'DELETE',
+          }).then(response => response.json()).then(data => {
+              console.log('File deleted successfully:', data);
+          }).catch(error => {
+              console.error('Error deleting file:', error);
+          });
+
+          return updated;
+      });
   };
+
 
   const handleMotionDetection = () => {
     // Create new notification
@@ -295,6 +347,14 @@ const App = () => {
                               <Badge variant="secondary" className="mt-1 text-xs">
                                 Recording Available
                               </Badge>
+                            )}
+                            {notification.clipUrl && (
+                              <video 
+                                className="mt-2 rounded-lg border border-gray-200 dark:border-gray-700" 
+                                controls 
+                                src={notification.clipUrl} 
+                                width="100%"
+                              />
                             )}
                           </div>
                           <button 
