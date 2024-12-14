@@ -119,6 +119,14 @@ const App = () => {
     });
   };
 
+  const handleRemoveNotification = (id) => {
+    setNotifications(prev => {
+      const updated = prev.filter(notification => notification.id !== id);
+      localStorage.setItem('doorbell-notifications', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const handleMotionDetection = () => {
     // Create new notification
     const newNotification = {
@@ -272,8 +280,7 @@ const App = () => {
                       return (
                         <div
                           key={notification.id}
-                          className={`flex items-center gap-2 p-2 rounded-lg bg-gray-50/50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 ${associatedRecording ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/70' : ''
-                            }`}
+                          className={`flex items-center gap-2 p-2 rounded-lg bg-gray-50/50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 ${associatedRecording ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/70' : ''}`}
                           onClick={() => associatedRecording && setSelectedNotification(notification)}
                         >
                           {notification.type === 'motion' ? (
@@ -290,6 +297,15 @@ const App = () => {
                               </Badge>
                             )}
                           </div>
+                          <button 
+                            className="text-red-500 text-xs font-bold px-1 py-0.5" 
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent triggering the onClick for the parent div
+                              handleRemoveNotification(notification.id);
+                            }}
+                          >
+                            ✕
+                          </button>
                         </div>
                       );
                     })}
