@@ -3,7 +3,7 @@ import asyncio
 from video_stream import VideoStreamHandler
 from audio_stream import AudioStreamHandler
 from mic_stream import MicStreamHandler
-
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, WebSocket
 from fastapi.responses import FileResponse, JSONResponse
 import os
@@ -87,6 +87,15 @@ async def get_video(filename: str):
 
 # WebSocket server for notifications
 notifications_app = FastAPI()
+
+notifications_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins (you should restrict this in production)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @notifications_app.websocket("/notifications")
 async def websocket_endpoint(websocket: WebSocket):
