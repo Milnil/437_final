@@ -100,6 +100,37 @@ const App = () => {
     ];
   });
 
+  useEffect(() => {
+      const fetchRecordings = async () => {
+          try {
+              console.log('Fetching recordings from the Raspberry Pi...');
+              const response = await fetch(`http://${serverUrl}:5004/recordings`); 
+              if (!response.ok) {
+                  throw new Error('Failed to fetch recordings from the backend');
+              }
+              const data = await response.json();
+
+              const formattedRecordings = data.recordings.map((recording, index) => ({
+                  id: index + 1,
+                  filename: recording.filename,
+                  date: new Date(recording.created * 1000).toLocaleDateString(),
+                  time: new Date(recording.created * 1000).toLocaleTimeString(),
+                  size: `${(recording.size / (1024 * 1024)).toFixed(2)} MB`, // Format size as MB
+                  videoUrl: `http://${serverUrl}:5004/videos/${recording.filename}` // Full URL to the video file
+              }));
+
+              setRecordings(formattedRecordings);
+              localStorage.setItem('doorbell-recordings', JSON.stringify(formattedRecordings));
+              console.log('Recordings updated from the Raspberry Pi:', formattedRecordings);
+          } catch (error) {
+              console.error('Error fetching recordings:', error);
+          }
+      };
+
+      fetchRecordings();
+  }, [serverUrl]); // Added serverUrl as a dependency to ensure re-fetching if it changes
+
+
   const [selectedNotification, setSelectedNotification] = useState(null);
 
   const selectedRecording = selectedNotification
@@ -111,6 +142,7 @@ const App = () => {
   };
 
   const handlePersonDetected = (notification, serverUrl) => {
+      // Update local notifications
       setNotifications(prev => {
           const updated = [notification, ...prev];
           localStorage.setItem('doorbell-notifications', JSON.stringify(updated));
@@ -118,47 +150,61 @@ const App = () => {
           return updated;
       });
 
-      const recordingStartTime = new Date();
-      const recordingDuration = 4000; 
+      // Open WebSocket connection to the notifications server
+      const ws = new WebSocket(`ws://${serverUrl}:5005/notifications`);
+      
+      ws.onopen = () => {
+          console.log('WebSocket connected to notifications server.');
+          
+          // Notify the backend that a person was detected
+          ws.send('person_detected');
+          console.log('Sent person_detected message to notifications server.');
+      };
 
-      setTimeout(() => {
-          const endTime = new Date();
-          const duration = Math.round((endTime.getTime() - recordingStartTime.getTime()) / 1000);
+      ws.onerror = (error) => {
+          console.error('WebSocket error on notifications server:', error);
+      };
 
-          const getVideoClipBlob = async () => {
-              try {
-                  const response = await fetch(`ws://${serverUrl}:5004/videos/${notification.id}.mp4`);
-                  if (!response.ok) {
-                      throw new Error('Failed to fetch video from backend');
-                  }
-                  const blob = await response.blob();
-                  return blob;
-              } catch (error) {
-                  console.error('Error fetching video clip:', error);
-                  return null;
-              }
-          };
-
-          getVideoClipBlob().then(videoBlob => {
-              if (videoBlob) {
-                  const fileName = `notification_${notification.id}.mp4`;
-                  const file = new File([videoBlob], fileName, { type: 'video/mp4' });
-
-                  const formData = new FormData();
-                  formData.append('file', file);
-
-                  fetch(`ws://${serverUrl}:5004/save-video`, {
-                      method: 'POST',
-                      body: formData
-                  }).then(response => response.json()).then(data => {
-                      console.log('File saved successfully:', data);
-                  }).catch(error => {
-                      console.error('Error saving file:', error);
-                  });
-              }
-          });
-      }, recordingDuration);
+      ws.onclose = () => {
+          console.log('WebSocket connection to notifications server closed.');
+      };
   };
+
+
+  const fetchVideoForNotification = async (serverUrl, notificationId) => {
+      try {
+          console.log(`Fetching video for notification ID: ${notificationId}...`);
+          const response = await fetch(`http://${serverUrl}:5004/videos/${notificationId}.mp4`);
+          
+          if (!response.ok) {
+              throw new Error('Failed to fetch video from backend');
+          }
+          
+          const blob = await response.blob();
+          
+          const fileName = `notification_${notificationId}.mp4`;
+          const file = new File([blob], fileName, { type: 'video/mp4' });
+
+          const formData = new FormData();
+          formData.append('file', file);
+
+          console.log('Uploading saved video to server...');
+          const uploadResponse = await fetch(`http://${serverUrl}:5004/save-video`, {
+              method: 'POST',
+              body: formData
+          });
+
+          const data = await uploadResponse.json();
+          console.log('File saved successfully:', data);
+
+          return file;
+      } catch (error) {
+          console.error('Error fetching video clip:', error);
+          return null;
+      }
+  };
+
+
 
   const handleRemoveNotification = (id, serverUrl) => {
       setNotifications(prev => {

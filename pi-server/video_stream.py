@@ -18,7 +18,7 @@ class VideoStreamHandler:
             controls={
                 "FrameDurationLimits": (33333, 33333)
             },  # ~30fps
-        colour_space=ColorSpace.Smpte170m()  # Use Rec.709 color space
+            colour_space=ColorSpace.Smpte170m()  # Use Rec.709 color space
         )
         self.picam2.configure(self.config)
         self.picam2.start()
@@ -26,16 +26,36 @@ class VideoStreamHandler:
         self.picam2.set_controls({"ScalerCrop": [0, 0, full_res[0], full_res[1]]})
         self.clients = set()
 
-    async def handle_client(self, websocket):
+    async def handle_client(self, websocket, storage_handler):
+        """
+        Handles WebSocket client connections and streams video frames to them.
+        Simultaneously, frames are added to the VideoStorageHandler's buffer.
+        Listens for 'person_detected' message to save the last 4 seconds of video.
+        """
         try:
             self.clients.add(websocket)
             logger.info("New video client connected")
             while True:
-                # Capture frame and convert to JPEG using cv2
+                # Check for any incoming messages from the client
+                try:
+                    message = await asyncio.wait_for(websocket.recv(), timeout=0.01)
+                    if message == "person_detected":
+                        logger.info("Received 'person_detected' message from client")
+                        storage_handler.save_video_clip('person_detected')
+                except asyncio.TimeoutError:
+                    pass  # No message received, continue processing frames
+                
+                # Capture frame from the camera
                 frame = self.picam2.capture_array()
+                
+                # Add frame to VideoStorageHandler's buffer for saving video clips
+                storage_handler.add_frame(frame)
+
+                # Convert frame to JPEG to send over the WebSocket
                 ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
                 if ret:
                     await websocket.send(jpeg.tobytes())
+
                 await asyncio.sleep(0.033)  # ~30fps
         except Exception as e:
             logger.error(f"Video client error: {e}")
@@ -43,10 +63,16 @@ class VideoStreamHandler:
             self.clients.remove(websocket)
             logger.info("Video client disconnected")
 
-    async def start_server(self):
-        async with serve(self.handle_client, "0.0.0.0", 5001):
+    async def start_server(self, storage_handler):
+        """
+        Starts the WebSocket server to handle video streaming.
+        """
+        async with serve(lambda websocket: self.handle_client(websocket, storage_handler), "0.0.0.0", 5001):
             logger.info("Video server started on ws://0.0.0.0:5001")
             await asyncio.Future()
 
     def cleanup(self):
+        """
+        Cleans up the resources when the server is stopped.
+        """
         self.picam2.stop()
