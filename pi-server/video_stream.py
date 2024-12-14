@@ -16,10 +16,7 @@ class VideoStreamHandler:
         self.config = self.picam2.create_video_configuration(
             main={"size": (640, 480)},
             controls={
-                "FrameDurationLimits": (33333, 33333),
-                "AwbMode": 0, 
-                "AwbGains": [2.5, 1.2], 
-                "Gamma": 1.1
+                "FrameDurationLimits": (33333, 33333)
             },  # ~30fps
         colour_space=ColorSpace.Smpte170m()  # Use Rec.709 color space
         )
