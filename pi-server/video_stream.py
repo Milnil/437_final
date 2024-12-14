@@ -14,7 +14,9 @@ class VideoStreamHandler:
         self.picam2 = Picamera2()
         self.config = self.picam2.create_video_configuration(
             main={"size": (640, 480)},
-            controls={"FrameDurationLimits": (33333, 33333)}  # ~30fps
+            controls={"FrameDurationLimits": (33333, 33333),
+                      "AwbMode": "auto"}  # ~30fps
+
         )
         self.picam2.configure(self.config)
         self.picam2.start()
