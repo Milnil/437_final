@@ -33,6 +33,7 @@ export const VideoStream: React.FC<VideoStreamProps> = ({ isStreaming, serverUrl
   const wsRef = useRef<WebSocket | null>(null);
   const frameCounterRef = useRef(0);
   const lastClassificationTimeRef = useRef<number>(0);
+  const lastNotificationTimeRef = useRef<number>(0); // Track the last time a notification was sent
   const [isModelLoaded, setIsModelLoaded] = useState(false);
   const workerRef = useRef<Worker | null>(null);
 
@@ -88,13 +89,12 @@ export const VideoStream: React.FC<VideoStreamProps> = ({ isStreaming, serverUrl
 
             // Swap red and blue channels for each pixel
             for (let i = 0; i < data.length; i += 4) {
-            const red = data[i]; // Original red
-            data[i] = data[i + 2]; // Replace red with blue
-            data[i + 2] = red; // Replace blue with red
+              const red = data[i]; // Original red
+              data[i] = data[i + 2]; // Replace red with blue
+              data[i + 2] = red; // Replace blue with red
             }
 
             canvasCtx.putImageData(imageData, 0, 0);
-
           }
 
           // Throttle classification by checking the timestamp
@@ -138,14 +138,24 @@ export const VideoStream: React.FC<VideoStreamProps> = ({ isStreaming, serverUrl
     );
 
     if (personDetected) {
-      const notification: Notification = {
-        id: Date.now(),
-        type: 'person-detected',
-        time: new Date().toLocaleTimeString(),
-        message: 'Person detected in video footage',
-        date: new Date().toLocaleDateString(),
-      };
-      onPersonDetected(notification);
+      const now = Date.now();
+      const fiveMinutes = 5 * 60 * 1000; // 5 minutes in milliseconds
+
+      if (now - lastNotificationTimeRef.current > fiveMinutes) {
+        lastNotificationTimeRef.current = now;
+
+        const notification: Notification = {
+          id: Date.now(),
+          type: 'person-detected',
+          time: new Date().toLocaleTimeString(),
+          message: 'Person detected in video footage',
+          date: new Date().toLocaleDateString(),
+        };
+
+        onPersonDetected(notification);
+      } else {
+        console.log(`Notification delayed. Next allowed notification in ${(fiveMinutes - (now - lastNotificationTimeRef.current)) / 1000}s`);
+      }
     }
   };
 
