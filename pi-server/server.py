@@ -45,8 +45,19 @@ class VideoStorageHandler:
         out.release()
         logger.info(f"Saved video clip: {video_filename}")
 
-# FastAPI app for HTTP endpoints
+
+# FastAPI app for HTTP endpoints (Port 5004)
 app = FastAPI()
+
+# Add CORS middleware to the main app (port 5004)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins (for production, specify the frontend URL)
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, DELETE, etc.)
+    allow_headers=["*"],  # Allow all headers (like Authorization, Content-Type, etc.)
+)
+
 
 @app.get("/recordings")
 async def get_recordings():
@@ -70,6 +81,7 @@ async def get_recordings():
         logger.error(f"Error getting recordings: {e}")
         return JSONResponse(content={"error": "Failed to list recordings"}, status_code=500)
 
+
 @app.get("/videos/{filename}")
 async def get_video(filename: str):
     """
@@ -85,9 +97,11 @@ async def get_video(filename: str):
         logger.error(f"Error serving video: {e}")
         return JSONResponse(content={"error": "Failed to retrieve video"}, status_code=500)
 
-# WebSocket server for notifications
+
+# WebSocket server for notifications (Port 5005)
 notifications_app = FastAPI()
 
+# Add CORS middleware to the notifications app (port 5005)
 notifications_app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allow all origins (you should restrict this in production)
@@ -111,6 +125,7 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         logger.info("Notification client disconnected")
 
+
 async def main():
     video_handler = VideoStreamHandler()
     audio_handler = AudioStreamHandler()
@@ -130,6 +145,7 @@ async def main():
         video_handler.cleanup()
         audio_handler.cleanup()
         mic_handler.cleanup()
+
 
 if __name__ == "__main__":
     try:
