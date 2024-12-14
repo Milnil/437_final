@@ -47,7 +47,10 @@ class VideoStreamHandler:
                 
                 # Capture frame from the camera
                 frame = self.picam2.capture_array()
-                
+
+                # Swap red and blue channels for each pixel
+                frame[:, :, [0, 2]] = frame[:, :, [2, 0]]
+
                 # Add frame to VideoStorageHandler's buffer for saving video clips
                 storage_handler.add_frame(frame)
 
