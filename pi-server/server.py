@@ -45,6 +45,7 @@ class VideoStorageHandler:
             out.write(frame)
         out.release()
         logger.info(f"Saved video clip: {video_filename}")
+video_storage_handler = VideoStorageHandler()
 
 
 # FastAPI app for HTTP endpoints (Port 5004)
@@ -149,7 +150,6 @@ async def main():
     audio_handler = AudioStreamHandler()
     mic_handler = MicStreamHandler()
     
-    video_storage_handler = VideoStorageHandler()
     
     try:
         await asyncio.gather(
