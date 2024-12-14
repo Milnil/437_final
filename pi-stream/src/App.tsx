@@ -212,17 +212,26 @@ const App = () => {
           localStorage.setItem('doorbell-notifications', JSON.stringify(updated));
 
           const fileName = `notification_${id}.mp4`;
-          fetch(`ws://${serverUrl}:5004/delete-video?fileName=${encodeURIComponent(fileName)}`, {
+          fetch(`http://${serverUrl}:5004/videos/${encodeURIComponent(fileName)}`, {
               method: 'DELETE',
-          }).then(response => response.json()).then(data => {
+          })
+          .then(response => {
+              if (!response.ok) {
+                  throw new Error('Failed to delete the file from the server');
+              }
+              return response.json();
+          })
+          .then(data => {
               console.log('File deleted successfully:', data);
-          }).catch(error => {
+          })
+          .catch(error => {
               console.error('Error deleting file:', error);
           });
 
           return updated;
       });
   };
+
 
 
   const handleMotionDetection = () => {

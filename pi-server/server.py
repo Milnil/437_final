@@ -4,7 +4,7 @@ from video_stream import VideoStreamHandler
 from audio_stream import AudioStreamHandler
 from mic_stream import MicStreamHandler
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 import os
 
@@ -58,7 +58,6 @@ app.add_middleware(
     allow_headers=["*"],  # Allow all headers (like Authorization, Content-Type, etc.)
 )
 
-
 @app.get("/recordings")
 async def get_recordings():
     """
@@ -81,7 +80,6 @@ async def get_recordings():
         logger.error(f"Error getting recordings: {e}")
         return JSONResponse(content={"error": "Failed to list recordings"}, status_code=500)
 
-
 @app.get("/videos/{filename}")
 async def get_video(filename: str):
     """
@@ -97,6 +95,24 @@ async def get_video(filename: str):
         logger.error(f"Error serving video: {e}")
         return JSONResponse(content={"error": "Failed to retrieve video"}, status_code=500)
 
+@app.delete("/videos/{filename}")
+async def delete_video(filename: str):
+    """
+    Delete the video file for a given filename.
+    """
+    try:
+        video_path = f"./videos/{filename}"
+        if os.path.exists(video_path):
+            os.remove(video_path)
+            logger.info(f"Deleted video file: {video_path}")
+            return JSONResponse(content={"message": "File deleted successfully"})
+        else:
+            logger.warning(f"File not found for deletion: {video_path}")
+            raise HTTPException(status_code=404, detail="File not found")
+    except Exception as e:
+        logger.error(f"Error deleting video file: {e}")
+        return JSONResponse(content={"error": "Failed to delete video"}, status_code=500)
+
 
 # WebSocket server for notifications (Port 5005)
 notifications_app = FastAPI()
@@ -109,7 +125,6 @@ notifications_app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 @notifications_app.websocket("/notifications")
 async def websocket_endpoint(websocket: WebSocket):
