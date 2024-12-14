@@ -53,8 +53,8 @@ const VideoPlayerModal = ({ notification, recording, isOpen, onClose }) => {
 
 
 const App = () => {
-  // const [serverUrl, setServerUrl] = useState('192.168.10.59');
-  const [serverUrl, setServerUrl] = useState('localhost');
+  const [serverUrl, setServerUrl] = useState('192.168.10.59');
+  // const [serverUrl, setServerUrl] = useState('localhost');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);

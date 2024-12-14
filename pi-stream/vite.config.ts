@@ -10,6 +10,7 @@ export default defineConfig({
     },
   },
   server: {
+    
     proxy: {
       '/ws': {
         target: 'ws://localhost:5002',
