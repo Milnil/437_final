@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import threading
 from video_stream import VideoStreamHandler
 from audio_stream import AudioStreamHandler
 from mic_stream import MicStreamHandler
@@ -37,7 +38,7 @@ class VideoStorageHandler:
     def save_video_clip(self, filename):
         """Save the last 4 seconds of video as an MP4 file."""
         import cv2
-        video_filename = f"{self.video_path}/{filename}.mp4"
+        video_filename = os.path.join(self.video_path, f"{filename}.mp4")
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out = cv2.VideoWriter(video_filename, fourcc, self.fps, self.frame_size)
         for frame in self.frame_buffer:
@@ -134,6 +135,8 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             message = await websocket.receive_text()
             logger.info(f"Received message from notification client: {message}")
+            if message == "person_detected":
+                video_storage_handler.save_video_clip(f"person_detected_{int(time.time())}")
             await websocket.send_text(f"Acknowledged: {message}")
     except Exception as e:
         logger.error(f"Error with notification WebSocket: {e}")
@@ -165,17 +168,13 @@ async def main():
 if __name__ == "__main__":
     try:
         import uvicorn
-        # Run FastAPI app for HTTP and video on port 5004
-        logger.info("Starting HTTP server for recordings on port 5004")
-        import threading
+        
         http_server_thread = threading.Thread(
             target=lambda: uvicorn.run(app, host="0.0.0.0", port=5004, log_level="info"),
             daemon=True
         )
         http_server_thread.start()
 
-        # Run WebSocket server for notifications on port 5005
-        logger.info("Starting WebSocket server for notifications on port 5005")
         notifications_server_thread = threading.Thread(
             target=lambda: uvicorn.run(notifications_app, host="0.0.0.0", port=5005, log_level="info"),
             daemon=True

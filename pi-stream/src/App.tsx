@@ -141,7 +141,7 @@ const App = () => {
     setIsStreaming(!isStreaming);
   };
 
-  const handlePersonDetected = (notification, serverUrl) => {
+  const handlePersonDetected = (notification) => {
       // Update local notifications
       setNotifications(prev => {
           const updated = [notification, ...prev];
