@@ -82,6 +82,19 @@ export const VideoStream: React.FC<VideoStreamProps> = ({ isStreaming, serverUrl
           const canvasCtx = canvasRef.current!.getContext('2d');
           if (canvasCtx) {
             canvasCtx.drawImage(imageBitmap, 0, 0, canvasRef.current!.width, canvasRef.current!.height);
+            
+            const imageData = canvasCtx.getImageData(0, 0, canvasRef.current!.width, canvasRef.current!.height);
+            const data = imageData.data;
+
+            // Swap red and blue channels for each pixel
+            for (let i = 0; i < data.length; i += 4) {
+            const red = data[i]; // Original red
+            data[i] = data[i + 2]; // Replace red with blue
+            data[i + 2] = red; // Replace blue with red
+            }
+
+            canvasCtx.putImageData(imageData, 0, 0);
+
           }
 
           // Throttle classification by checking the timestamp
