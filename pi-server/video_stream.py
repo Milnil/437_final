@@ -8,6 +8,7 @@ import logging
 from libcamera import ColorSpace
 import collections  # For deque to store video frames
 import time  # For timestamping video clips
+import imageio  # Use imageio for video writing
 
 logger = logging.getLogger(__name__)
 
@@ -61,32 +62,13 @@ class VideoStreamHandler:
 
             logger.info(f"Starting to save the last 4 seconds of video to {output_path}.")
             try:
-                height, width, layers = self.frame_buffer[0].shape
-                logger.info(f"Video frame size: {width}x{height} with {layers} color channels.")
-                
-                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                video_writer = cv2.VideoWriter(output_path, fourcc, 30, (width, height))
-                
-                frame_count = 0
-                for i, frame in enumerate(list(self.frame_buffer)):
-                    logger.info(f"Frame {i} shape: {frame.shape}")
-                    if frame.shape != (height, width, layers):
-                        logger.warning(f"Frame size mismatch: got {frame.shape}, expected {(height, width, layers)}. Resizing frame.")
-                        frame = cv2.resize(frame, (width, height))
-                    try:
-                        video_writer.write(frame)
-                        frame_count += 1
-                    except Exception as e:
-                        logger.error(f"Error writing frame to video: {e}")
+                with imageio.get_writer(output_path, fps=30, codec='libx264') as writer:
+                    for frame in list(self.frame_buffer):  # Convert deque to list to avoid issues during iteration
+                        writer.append_data(frame)
 
-
-                logger.info(f"Successfully saved {frame_count} frames to {output_path}.")
+                logger.info(f"Successfully saved video with {len(self.frame_buffer)} frames.")
             except Exception as e:
-                logger.error(f"Error while saving the video: {e}")
-            finally:
-                if 'video_writer' in locals() and video_writer.isOpened():
-                    video_writer.release()
-                logger.info(f"Finished saving video to {output_path}.")
+                logger.error(f"Error saving video: {e}")
 
 
 
