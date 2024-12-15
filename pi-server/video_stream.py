@@ -58,7 +58,6 @@ class VideoStreamHandler:
     async def handle_client(self, websocket, storage_handler):
         """
         Handles WebSocket client connections and streams video frames to them.
-        Simultaneously, frames are added to the VideoStorageHandler's buffer.
         Listens for 'person_detected' message to save the last 4 seconds of video.
         """
         try:
@@ -71,8 +70,11 @@ class VideoStreamHandler:
                     message = await asyncio.wait_for(websocket.recv(), timeout=0.1)
                     if message == "person_detected":
                         logger.info("Received 'person_detected' message from client")
-                        # Save the last 4 seconds of video asynchronously
-                        await storage_handler.save_video_clip(f"person_detected_{int(asyncio.get_event_loop().time() * 1000)}")
+                        # Option 1: Wait for video save to complete (blocking)
+                        # await storage_handler.save_video_clip(f"notification_{int(asyncio.get_event_loop().time() * 1000)}")
+                        
+                        # Option 2: Run save in the background (non-blocking)
+                        asyncio.create_task(storage_handler.save_video_clip(f"notification_{int(asyncio.get_event_loop().time() * 1000)}"))
                 except asyncio.TimeoutError:
                     pass  # No message received, continue processing frames
 
@@ -81,6 +83,7 @@ class VideoStreamHandler:
         finally:
             self.clients.remove(websocket)
             logger.info(f"Video client disconnected. Total clients: {len(self.clients)}")
+
 
     async def start_server(self, storage_handler):
         """
