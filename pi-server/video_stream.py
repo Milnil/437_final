@@ -68,7 +68,11 @@ class VideoStreamHandler:
                     if frame.shape != (height, width, layers):
                         logger.warning(f"Frame size mismatch: got {frame.shape}, expected {(height, width, layers)}. Resizing frame.")
                         frame = cv2.resize(frame, (width, height))
-                    video_writer.write(frame)
+                    try:
+                        video_writer.write(frame)
+                        frame_count += 1
+                    except Exception as e:
+                        logger.error(f"Error writing frame to video: {e}")
 
 
                 logger.info(f"Successfully saved {frame_count} frames to {output_path}.")
