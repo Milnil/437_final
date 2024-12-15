@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 class VideoStreamHandler:
     def __init__(self):
+        self.lock = asyncio.Lock()
         self.picam2 = Picamera2()
         self.config = self.picam2.create_video_configuration(
             main={"size": (640, 480)},
