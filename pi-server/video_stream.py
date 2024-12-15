@@ -53,16 +53,28 @@ class VideoStreamHandler:
             logger.warning("No frames available in the buffer to save.")
             return
 
-        logger.info("Saving last 4 seconds of video.")
-        height, width, layers = self.frame_buffer[0].shape
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        video_writer = cv2.VideoWriter(output_path, fourcc, 30, (width, height))
+        logger.info(f"Starting to save the last 4 seconds of video to {output_path}.")
+        try:
+            height, width, layers = self.frame_buffer[0].shape
+            logger.info(f"Video frame size: {width}x{height} with {layers} color channels.")
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            video_writer = cv2.VideoWriter(output_path, fourcc, 30, (width, height))
+            
+            frame_count = 0
+            for frame in list(self.frame_buffer):  # Convert deque to list to avoid issues during iteration
+                if frame is None or frame.size == 0:
+                    logger.warning(f"Frame {frame_count} is empty or invalid.")
+                else:
+                    video_writer.write(frame)
+                    frame_count += 1
 
-        for frame in list(self.frame_buffer):  # Convert deque to list to avoid issues during iteration
-            video_writer.write(frame)
+            video_writer.release()
+            logger.info(f"Successfully saved {frame_count} frames to {output_path}.")
+        except Exception as e:
+            logger.error(f"Error while saving the video: {e}")
+        finally:
+            logger.info(f"Finished saving video to {output_path}.")
 
-        video_writer.release()
-        logger.info(f"Saved last 4 seconds of video to {output_path}")
 
     async def start_server(self):
         async with serve(self.handle_client, "0.0.0.0", 5001):
