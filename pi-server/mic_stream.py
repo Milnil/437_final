@@ -73,14 +73,10 @@ class MicStreamHandler:
             if not self.stream:
                 self.start_audio_output()
             else:
-                self.clear_buffer()  # Clear buffer when new client connects
+                self.clear_buffer()
             
-            start_time = time.time()
-            frames_received = 0
-            
-            while True:
+            async for message in websocket:
                 try:
-                    data = await websocket.recv()
                     frames_received += 1
                     
                     if frames_received % 100 == 0:
@@ -101,12 +97,17 @@ class MicStreamHandler:
         except Exception as e:
             logger.error(f"Microphone client error [ID: {client_id}]: {e}")
         finally:
+            await self.cleanup_client(websocket, client_id)
+
+    async def cleanup_client(self, websocket, client_id):
+        if websocket in self.clients:
             self.clients.remove(websocket)
             logger.info(f"Microphone client disconnected [ID: {client_id}]. Remaining clients: {len(self.clients)}")
             
             if not self.clients:
                 self.clear_buffer()
                 self.cleanup()
+                logger.info("All clients disconnected, cleaned up audio resources")
 
     async def start_server(self):
         async with serve(self.handle_client, "0.0.0.0", 5003):

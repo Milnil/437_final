@@ -70,6 +70,14 @@ export const MicrophoneStream: React.FC<MicrophoneStreamProps> = ({
         };
 
         const stopMicrophone = () => {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => {
+                    track.stop();
+                    console.log('Stopping media track:', track.kind);
+                });
+                mediaStream = null;
+            }
+
             if (processorNodeRef.current) {
                 processorNodeRef.current.disconnect();
                 processorNodeRef.current = null;
@@ -80,19 +88,16 @@ export const MicrophoneStream: React.FC<MicrophoneStreamProps> = ({
                 streamNodeRef.current = null;
             }
 
-            if (websocketRef.current && websocketRef.current.readyState === WebSocket.OPEN) {
-                websocketRef.current.close();
+            if (websocketRef.current) {
+                if (websocketRef.current.readyState === WebSocket.OPEN) {
+                    websocketRef.current.close(1000, "Microphone disabled");
+                }
                 websocketRef.current = null;
             }
 
             if (audioContextRef.current) {
-                audioContextRef.current.close();
+                audioContextRef.current.close().catch(console.error);
                 audioContextRef.current = null;
-            }
-
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
-                mediaStream = null;
             }
         };
 
