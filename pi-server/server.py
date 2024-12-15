@@ -6,7 +6,7 @@ from audio_stream import AudioStreamHandler
 from mic_stream import MicStreamHandler
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, WebSocket, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 import os
 import time
 import json
@@ -87,18 +87,19 @@ async def get_recordings():
 @app.get("/videos/{filename}")
 async def get_video(filename: str):
     """
-    Serve the video file for a given filename.
+    Serve the video file as a streaming response.
     """
-    try:
-        video_path = f"./videos/{filename}"
-        if os.path.exists(video_path):
-            return FileResponse(video_path, media_type='video/mp4')
-        else:
-            return JSONResponse(content={"error": "File not found"}, status_code=404)
-    except Exception as e:
-        logger.error(f"Error serving video: {e}")
-        return JSONResponse(content={"error": "Failed to retrieve video"}, status_code=500)
-
+    video_path = f"./videos/{filename}"
+    if not os.path.isfile(video_path):
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    def video_stream():
+        with open(video_path, "rb") as video_file:
+            yield from video_file
+    
+    response = StreamingResponse(video_stream(), media_type="video/mp4")
+    response.headers["Accept-Ranges"] = "bytes"
+    return response
 @app.delete("/videos/{filename}")
 async def delete_video(filename: str):
     """

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Bell, Camera, Video, VideoOff, Mic, MicOff, Volume2, VolumeX, MoreVertical, History, Bug, Circle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ import { VideoStream } from './components/VideoStream';
 import { AudioStream } from './components/AudioStream';
 import { MicrophoneStream } from './components/MicrophoneStream';
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import clsx from 'clsx';
+import Modal from './components/Modal';
 
 const VideoPlayerModal = ({ notification, recording, isOpen, onClose }) => {
   if (!recording) return null;
@@ -59,8 +61,22 @@ const App = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isMicEnabled, setIsMicEnabled] = useState(true);
-  const [videoUrl, setVideoUrl] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showModal, setShowModal] = useState(false); // Controls visibility of the modal
+  const [selectedRecordingUrl, setSelectedRecordingUrl] = useState(''); // Stores the URL of the recording to be played
+
+  const handleNotificationClick = (associatedRecording) => {
+    if (associatedRecording) {
+      const recordingUrl = `http://${serverUrl}:5004/videos/${associatedRecording.filename}`;
+      console.log('Opening recording:', recordingUrl);
+      setSelectedRecordingUrl(recordingUrl); // Set the recording URL for the modal
+      setShowModal(true); // Show the modal
+    }
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedRecordingUrl('');
+  };
 
   const [notifications, setNotifications] = useState(() => {
     const saved = localStorage.getItem('doorbell-notifications');
@@ -103,22 +119,32 @@ const App = () => {
     ];
   });
 
-  useEffect(() => {
-    const fetchRecordings = async () => {
-      try {
-        const response = await fetch(`http://${serverUrl}:5004/recordings`);
-        if (!response.ok) throw new Error('Failed to fetch recordings');
-        const data = await response.json();
+
+  const fetchRecordings = useCallback(async () => {
+    try {
+      console.log('Fetching recordings from backend...');
+      const response = await fetch(`http://${serverUrl}:5004/recordings`);
+      if (!response.ok) throw new Error('Failed to fetch recordings');
+      
+      const data = await response.json();
+      console.log('Recordings fetched successfully:', data);
+      // Only update recordings if they have changed
+      if (JSON.stringify(data.recordings) !== JSON.stringify(recordings)) {
         setRecordings(data.recordings);
-      } catch (error) {
-        console.error('Error fetching recordings:', error);
       }
-    };
+    } catch (error) {
+      console.error('Error fetching recordings:', error);
+    }
+  }, [serverUrl, recordings]);
 
-    fetchRecordings();
-  }, [serverUrl]);
+  useEffect(() => {
+    fetchRecordings(); // Fetch immediately on component mount
+    const intervalId = setInterval(fetchRecordings, 30000); // Poll every 30 seconds
 
-  const updateNotificationRecordings = () => {
+    return () => clearInterval(intervalId); // Cleanup on unmount
+  }, [fetchRecordings]);
+
+  const updateNotificationRecordings = useCallback(() => {
     setNotifications((prevNotifications) => 
       prevNotifications.map((notification) => {
         const associatedRecording = recordings.find(
@@ -133,11 +159,18 @@ const App = () => {
         return notification;
       })
     );
-  };
+  }, [recordings, serverUrl]);
+
 
   useEffect(() => {
-    updateNotificationRecordings();
-  }, [recordings]);
+    if (recordings.length > 0) {
+      console.log('Recordings have changed, updating notification recordings.');
+      updateNotificationRecordings();
+    } else {
+      console.log('No recordings available to update notifications.');
+    }
+  }, [recordings, updateNotificationRecordings]);
+
 
 
   const [selectedNotification, setSelectedNotification] = useState(null);
@@ -151,6 +184,21 @@ const App = () => {
   };
 
   const handlePersonDetected = (notification) => {
+    // Get the current time
+    const currentTime = Date.now();
+
+    // Get the timestamp of the last execution from localStorage
+    const lastExecutionTime = localStorage.getItem('lastPersonDetectedTime');
+
+    // Check if the function was called in the last 5 minutes (300,000 milliseconds)
+    if (lastExecutionTime && currentTime - parseInt(lastExecutionTime, 10) < 300000) {
+      console.log('handlePersonDetected was called recently. Skipping execution.');
+      return; // Exit early if called within the last 5 minutes
+    }
+
+    // Store the current time as the last execution time
+    localStorage.setItem('lastPersonDetectedTime', currentTime.toString());
+
     // Update local notifications
     setNotifications(prev => {
       const updated = [notification, ...prev];
@@ -178,6 +226,7 @@ const App = () => {
       console.log('WebSocket connection to notifications server closed.');
     };
   };
+
 
 
 
@@ -356,50 +405,53 @@ const App = () => {
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[calc(100vh-220px)]">
-                  <div className="space-y-2">
-                    {notifications.map((notification) => {
-                      const associatedRecording = recordings.find(r => r.notificationId === notification.id);
-                      return (
-                        <div
-                          key={notification.id}
-                          className={`flex items-center gap-2 p-2 rounded-lg bg-gray-50/50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 ${associatedRecording ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/70' : ''}`}
-                          onClick={() => associatedRecording && setSelectedNotification(notification)}
-                        >
-                          {notification.type === 'motion' ? (
-                            <Camera className="h-4 w-4" />
-                          ) : (
-                            <Bell className="h-4 w-4" />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{notification.message}</p>
-                            <p className="text-xs text-gray-500">{notification.time}</p>
-                            {associatedRecording && (
-                              <Badge variant="secondary" className="mt-1 text-xs">
-                                Recording Available
-                              </Badge>
-                            )}
-                            {notification.clipUrl && (
-                              <video 
-                                className="mt-2 rounded-lg border border-gray-200 dark:border-gray-700" 
-                                controls 
-                                src={notification.clipUrl} 
-                                width="100%"
-                              />
-                            )}
-                          </div>
-                          <button 
-                            className="text-red-500 text-xs font-bold px-1 py-0.5" 
-                            onClick={(e) => {
-                              e.stopPropagation(); // Prevent triggering the onClick for the parent div
-                              handleRemoveNotification(notification.id);
-                            }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
+<div>
+      <div className="space-y-2">
+        {notifications.map((notification) => {
+          const associatedRecording = recordings.find(
+            r => r.notificationId === notification.id || r.filename.includes(notification.id)
+          );
+
+          return (
+            <div
+              key={notification.id}
+              className={`flex items-center gap-2 p-2 rounded-lg bg-gray-50/50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 
+                ${associatedRecording ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/70' : ''}`}
+              onClick={() => handleNotificationClick(associatedRecording)}
+            >
+              {notification.type === 'motion' ? (
+                <Camera className="h-4 w-4" />
+              ) : (
+                <Bell className="h-4 w-4" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{notification.message}</p>
+                <p className="text-xs text-gray-500">{notification.time}</p>
+                {associatedRecording && (
+                  <Badge variant="secondary" className="mt-1 text-xs">
+                    Recording Available
+                  </Badge>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {showModal && (
+        <Modal onClose={closeModal}>
+          <video 
+            key={selectedRecordingUrl} 
+            className="rounded-lg border border-gray-200 dark:border-gray-700" 
+            controls 
+            src={selectedRecordingUrl} 
+            width="100%"
+            autoPlay
+          />
+        </Modal>
+      )}
+    </div>
+
                 </ScrollArea>
               </CardContent>
             </Card>
