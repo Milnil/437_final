@@ -64,10 +64,12 @@ class VideoStreamHandler:
                 video_writer = cv2.VideoWriter(output_path, fourcc, 30, (width, height))
                 
                 frame_count = 0
-                for frame in list(self.frame_buffer):  # Convert deque to list to avoid issues during iteration
-                    if frame is not None and frame.size > 0:
-                        video_writer.write(frame)
-                        frame_count += 1
+                for frame in list(self.frame_buffer):
+                    if frame.shape != (height, width, layers):
+                        logger.warning(f"Frame size mismatch: got {frame.shape}, expected {(height, width, layers)}. Resizing frame.")
+                        frame = cv2.resize(frame, (width, height))
+                    video_writer.write(frame)
+
 
                 logger.info(f"Successfully saved {frame_count} frames to {output_path}.")
             except Exception as e:
