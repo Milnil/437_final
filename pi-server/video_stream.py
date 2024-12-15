@@ -38,11 +38,13 @@ class VideoStreamHandler:
                 # Capture frame and convert to JPEG using cv2
                 frame = self.picam2.capture_array()
                 frame[:, :, [0, 2]] = frame[:, :, [2, 0]]
-                asyncio.create_task(self.add_frame_to_buffer(frame))
+                
                 
                 ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
                 if ret:
                     await websocket.send(jpeg.tobytes())
+
+                asyncio.create_task(self.add_frame_to_buffer(frame.copy()))
                 await asyncio.sleep(0.033)  # ~30fps
         except Exception as e:
             logger.error(f"Video client error: {e}")
