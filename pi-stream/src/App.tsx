@@ -63,13 +63,16 @@ const App = () => {
   const [isMicEnabled, setIsMicEnabled] = useState(true);
   const [showModal, setShowModal] = useState(false); // Controls visibility of the modal
   const [selectedRecordingUrl, setSelectedRecordingUrl] = useState(''); // Stores the URL of the recording to be played
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  const handleNotificationClick = (associatedRecording) => {
+
+
+  const handleNotificationClick = (associatedRecording: Recording | undefined) => {
     if (associatedRecording) {
       const recordingUrl = `http://${serverUrl}:5004/videos/${associatedRecording.filename}`;
-      console.log('Opening recording:', recordingUrl);
-      setSelectedRecordingUrl(recordingUrl); // Set the recording URL for the modal
-      setShowModal(true); // Show the modal
+      console.log('Requesting video from URL:', recordingUrl);
+      setSelectedRecordingUrl(recordingUrl); // Set the video URL
+      setShowModal(true); // Open the modal
     }
   };
 
@@ -440,14 +443,17 @@ const App = () => {
 
       {showModal && (
         <Modal onClose={closeModal}>
-          <video 
-            key={selectedRecordingUrl} 
-            className="rounded-lg border border-gray-200 dark:border-gray-700" 
-            controls 
-            src={selectedRecordingUrl} 
-            width="100%"
-            autoPlay
-          />
+<video 
+  key={selectedRecordingUrl} 
+  src={selectedRecordingUrl} 
+  controls 
+  autoPlay 
+  onLoadedData={() => setIsLoading(false)} 
+  onError={() => console.error('Error loading video')}
+  width="100%"
+/>
+{isLoading && <p>Loading...</p>}
+
         </Modal>
       )}
     </div>
