@@ -69,6 +69,7 @@ async def get_video(filename: str):
             yield from video_file
     
     response = StreamingResponse(video_stream(), media_type="video/mp4")
+    response.headers["Content-Type"] = "video/mp4"
     response.headers["Accept-Ranges"] = "bytes"
     return response
 

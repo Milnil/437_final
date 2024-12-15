@@ -60,7 +60,7 @@ class VideoStreamHandler:
                 height, width, layers = self.frame_buffer[0].shape
                 logger.info(f"Video frame size: {width}x{height} with {layers} color channels.")
                 
-                fourcc = cv2.VideoWriter_fourcc(*'XVID')
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
                 video_writer = cv2.VideoWriter(output_path, fourcc, 30, (width, height))
                 
                 frame_count = 0
