@@ -48,32 +48,33 @@ class VideoStreamHandler:
             self.clients.remove(websocket)
             logger.info("Video client disconnected")
 
-    def save_last_4_seconds(self, output_path='last_4_seconds.mp4'):
-        if not self.frame_buffer:
-            logger.warning("No frames available in the buffer to save.")
-            return
+    async def save_last_4_seconds(self, output_path='last_4_seconds.mp4'):
+        async with self.lock:
+            if not self.frame_buffer:
+                logger.warning("No frames available in the buffer to save.")
+                return
 
-        logger.info(f"Starting to save the last 4 seconds of video to {output_path}.")
-        try:
-            height, width, layers = self.frame_buffer[0].shape
-            logger.info(f"Video frame size: {width}x{height} with {layers} color channels.")
-            
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            video_writer = cv2.VideoWriter(output_path, fourcc, 30, (width, height))
-            
-            frame_count = 0
-            for frame in list(self.frame_buffer):  # Convert deque to list to avoid issues during iteration
-                if frame is not None and frame.size > 0:
-                    video_writer.write(frame)
-                    frame_count += 1
+            logger.info(f"Starting to save the last 4 seconds of video to {output_path}.")
+            try:
+                height, width, layers = self.frame_buffer[0].shape
+                logger.info(f"Video frame size: {width}x{height} with {layers} color channels.")
+                
+                fourcc = cv2.VideoWriter_fourcc(*'H264')
+                video_writer = cv2.VideoWriter(output_path, fourcc, 30, (width, height))
+                
+                frame_count = 0
+                for frame in list(self.frame_buffer):  # Convert deque to list to avoid issues during iteration
+                    if frame is not None and frame.size > 0:
+                        video_writer.write(frame)
+                        frame_count += 1
 
-            logger.info(f"Successfully saved {frame_count} frames to {output_path}.")
-        except Exception as e:
-            logger.error(f"Error while saving the video: {e}")
-        finally:
-            if 'video_writer' in locals() and video_writer.isOpened():
-                video_writer.release()
-            logger.info(f"Finished saving video to {output_path}.")
+                logger.info(f"Successfully saved {frame_count} frames to {output_path}.")
+            except Exception as e:
+                logger.error(f"Error while saving the video: {e}")
+            finally:
+                if 'video_writer' in locals() and video_writer.isOpened():
+                    video_writer.release()
+                logger.info(f"Finished saving video to {output_path}.")
 
 
 
