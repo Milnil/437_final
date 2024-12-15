@@ -9,6 +9,7 @@ from fastapi import FastAPI, WebSocket, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 import os
 import time
+import json
 
 logging.basicConfig(
     level=logging.INFO,
@@ -137,8 +138,14 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             message = await websocket.receive_text()
             logger.info(f"Received message from notification client: {message}")
-            if message == "person_detected":
-                video_storage_handler.save_video_clip(f"person_detected_{int(time.time())}")
+            try:
+                data = json.loads(message)
+                notification_id = data.get("notificationId")
+                if notification_id:
+                    video_storage_handler.save_video_clip(f"notification_{notification_id}")
+                    logger.info(f"Saved video with filename notification_{notification_id}.mp4")
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid JSON message received: {message}")
             await websocket.send_text(f"Acknowledged: {message}")
     except Exception as e:
         logger.error(f"Error with notification WebSocket: {e}")

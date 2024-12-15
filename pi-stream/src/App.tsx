@@ -151,37 +151,37 @@ const App = () => {
   };
 
   const handlePersonDetected = (notification) => {
-      // Update local notifications
-      setNotifications(prev => {
-          const updated = [notification, ...prev];
-          localStorage.setItem('doorbell-notifications', JSON.stringify(updated));
-          console.log('Person detected notification added:', notification);
-          return updated;
-      });
+    // Update local notifications
+    setNotifications(prev => {
+      const updated = [notification, ...prev];
+      localStorage.setItem('doorbell-notifications', JSON.stringify(updated));
+      console.log('Person detected notification added:', notification);
+      return updated;
+    });
 
-      // Open WebSocket connection to the notifications server
-      const ws = new WebSocket(`ws://${serverUrl}:5005/notifications`);
+    // Open WebSocket connection to the notifications server
+    const ws = new WebSocket(`ws://${serverUrl}:5005/notifications`);
+    
+    ws.onopen = () => {
+      console.log('WebSocket connected to notifications server.');
       
-      ws.onopen = () => {
-          console.log('WebSocket connected to notifications server.');
-          
-          // Notify the backend that a person was detected
-          ws.send('person_detected');
-          console.log('Sent person_detected message to notifications server.');
-      };
+      // Send the notification ID to the backend
+      ws.send(JSON.stringify({ notificationId: notification.id }));
+      console.log(`Sent notification ID ${notification.id} to notifications server.`);
+    };
 
-      ws.onerror = (error) => {
-          console.error('WebSocket error on notifications server:', error);
-      };
+    ws.onerror = (error) => {
+      console.error('WebSocket error on notifications server:', error);
+    };
 
-      ws.onclose = () => {
-          console.log('WebSocket connection to notifications server closed.');
-      };
+    ws.onclose = () => {
+      console.log('WebSocket connection to notifications server closed.');
+    };
   };
 
 
 
-  const handleRemoveNotification = (id, serverUrl) => {
+  const handleRemoveNotification = (id) => {
       setNotifications(prev => {
           const updated = prev.filter(notification => notification.id !== id);
           localStorage.setItem('doorbell-notifications', JSON.stringify(updated));
