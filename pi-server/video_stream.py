@@ -37,7 +37,7 @@ class VideoStreamHandler:
                 # Capture frame and convert to JPEG using cv2
                 frame = self.picam2.capture_array()
                 frame[:, :, [0, 2]] = frame[:, :, [2, 0]]
-                self.frame_buffer.append(frame)  # Store the frame in the buffer
+                asyncio.create_task(self.add_frame_to_buffer(frame))
                 
                 ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
                 if ret:
@@ -64,7 +64,8 @@ class VideoStreamHandler:
                 video_writer = cv2.VideoWriter(output_path, fourcc, 30, (width, height))
                 
                 frame_count = 0
-                for frame in list(self.frame_buffer):
+                for i, frame in enumerate(list(self.frame_buffer)):
+                    logger.info(f"Frame {i} shape: {frame.shape}")
                     if frame.shape != (height, width, layers):
                         logger.warning(f"Frame size mismatch: got {frame.shape}, expected {(height, width, layers)}. Resizing frame.")
                         frame = cv2.resize(frame, (width, height))
