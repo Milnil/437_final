@@ -19,6 +19,7 @@ import { AudioStream } from './components/AudioStream';
 import { MicrophoneStream } from './components/MicrophoneStream';
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import clsx from 'clsx';
+import axios from 'axios'
 import Modal from './components/Modal';
 
 const VideoPlayerModal = ({ notification, recording, isOpen, onClose }) => {
@@ -186,7 +187,7 @@ const App = () => {
     setIsStreaming(!isStreaming);
   };
 
-  const handlePersonDetected = (notification) => {
+  const handlePersonDetected = async (notification) => {
     // Get the current time
     const currentTime = Date.now();
 
@@ -210,24 +211,11 @@ const App = () => {
       return updated;
     });
 
-    // Open WebSocket connection to the notifications server
-    const ws = new WebSocket(`ws://${serverUrl}:5005/notifications`);
-    
-    ws.onopen = () => {
-      console.log('WebSocket connected to notifications server.');
-      
-      // Send the notification ID to the backend
-      ws.send(JSON.stringify({ notificationId: notification.id }));
-      console.log(`Sent notification ID ${notification.id} to notifications server.`);
-    };
-
-    ws.onerror = (error) => {
-      console.error('WebSocket error on notifications server:', error);
-    };
-
-    ws.onclose = () => {
-      console.log('WebSocket connection to notifications server closed.');
-    };
+    try {
+      const response = await axios.post(`http://${serverUrl}:5005/save-video/${notification.id}`);
+    } catch (error) {
+      console.error('Error saving video:', error);
+    }
   };
 
 

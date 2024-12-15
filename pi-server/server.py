@@ -109,7 +109,7 @@ async def save_video(video_id: str):
     if not video_id:
         raise HTTPException(status_code=400, detail="Invalid video ID")
     try:
-        output_path = f"last_4_seconds_{video_id}.mp4"
+        output_path = f"videos/notification_{video_id}.mp4"
         video_handler.save_last_4_seconds(output_path)
         return {"message": f"Saved last 4 seconds of video as {output_path}"}
     except Exception as e:
