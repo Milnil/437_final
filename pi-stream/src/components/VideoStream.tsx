@@ -114,13 +114,13 @@ export const VideoStream: React.FC<VideoStreamProps> = ({ isStreaming, serverUrl
 
   const handleClassificationResult = (predictions) => {
     const personKeywords = [
-      'person', 'human', 'man', 'woman', 'boy', 'girl', 'adult', 
-      'child', 'kid', 'people', 'gaskmask', 'mask', 'gas helmet', 
-      'sweatshirt', 'pants', 'shirt', 'sunglasses', 'dark glasses', 
+      'person', 'human', 'man', 'woman', 'boy', 'girl', 'adult',
+      'child', 'kid', 'people', 'gasmask', 'mask', 'gas helmet',
+      'sweatshirt', 'pants', 'shirt', 'sunglasses', 'dark glasses',
       'shades', 'wig'
     ];
 
-    const personDetected = predictions.some(prediction => 
+    const personDetected = predictions.some(prediction =>
       personKeywords.some(keyword => prediction.className.toLowerCase().includes(keyword))
     );
 
