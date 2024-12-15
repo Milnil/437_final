@@ -129,7 +129,7 @@ const App = () => {
       console.log('Fetching recordings from backend...');
       const response = await fetch(`http://${serverUrl}:5004/recordings`);
       if (!response.ok) throw new Error('Failed to fetch recordings');
-      
+
       const data = await response.json();
       console.log('Recordings fetched successfully:', data);
       // Only update recordings if they have changed
@@ -149,7 +149,7 @@ const App = () => {
   }, [fetchRecordings]);
 
   const updateNotificationRecordings = useCallback(() => {
-    setNotifications((prevNotifications) => 
+    setNotifications((prevNotifications) =>
       prevNotifications.map((notification) => {
         const associatedRecording = recordings.find(
           (recording) => recording.filename.includes(notification.id)
@@ -222,29 +222,29 @@ const App = () => {
 
 
   const handleRemoveNotification = (id) => {
-      setNotifications(prev => {
-          const updated = prev.filter(notification => notification.id !== id);
-          localStorage.setItem('doorbell-notifications', JSON.stringify(updated));
+    setNotifications(prev => {
+      const updated = prev.filter(notification => notification.id !== id);
+      localStorage.setItem('doorbell-notifications', JSON.stringify(updated));
 
-          const fileName = `notification_${id}.mp4`;
-          fetch(`http://${serverUrl}:5004/videos/${encodeURIComponent(fileName)}`, {
-              method: 'DELETE',
-          })
-          .then(response => {
-              if (!response.ok) {
-                  throw new Error('Failed to delete the file from the server');
-              }
-              return response.json();
-          })
-          .then(data => {
-              console.log('File deleted successfully:', data);
-          })
-          .catch(error => {
-              console.error('Error deleting file:', error);
-          });
+      const fileName = `notification_${id}.mp4`;
+      fetch(`http://${serverUrl}:5004/videos/${encodeURIComponent(fileName)}`, {
+        method: 'DELETE',
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to delete the file from the server');
+          }
+          return response.json();
+        })
+        .then(data => {
+          console.log('File deleted successfully:', data);
+        })
+        .catch(error => {
+          console.error('Error deleting file:', error);
+        });
 
-          return updated;
-      });
+      return updated;
+    });
   };
 
 
@@ -396,64 +396,64 @@ const App = () => {
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[calc(100vh-220px)]">
-<div>
-      <div className="space-y-2">
-        {notifications.map((notification) => {
-          const associatedRecording = recordings.find(
-            r => r.notificationId === notification.id || r.filename.includes(notification.id)
-          );
+                  <div>
+                    <div className="space-y-2">
+                      {notifications.map((notification) => {
+                        const associatedRecording = recordings.find(
+                          r => r.notificationId === notification.id || r.filename.includes(notification.id)
+                        );
 
-          return (
-            <div
-              key={notification.id}
-              className={`flex items-center gap-2 p-2 rounded-lg bg-gray-50/50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 
+                        return (
+                          <div
+                            key={notification.id}
+                            className={`flex items-center gap-2 p-2 rounded-lg bg-gray-50/50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 
                 ${associatedRecording ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/70' : ''}`}
-              onClick={() => handleNotificationClick(associatedRecording)}
-            >
-              {notification.type === 'motion' ? (
-                <Camera className="h-4 w-4" />
-              ) : (
-                <Bell className="h-4 w-4" />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{notification.message}</p>
-                <p className="text-xs text-gray-500">{notification.time}</p>
-                {associatedRecording && (
-                  <Badge variant="secondary" className="mt-1 text-xs">
-                    Recording Available
-                  </Badge>
-                )}
-              </div>
-              <button 
-                            className="text-red-500 text-xs font-bold px-1 py-0.5" 
-                            onClick={(e) => {
-                              e.stopPropagation(); // Prevent triggering the onClick for the parent div
-                              handleRemoveNotification(notification.id);
-                            }}
+                            onClick={() => handleNotificationClick(associatedRecording)}
                           >
-                            ✕
-                          </button>
-            </div>
-          );
-        })}
-      </div>
+                            {notification.type === 'motion' ? (
+                              <Camera className="h-4 w-4" />
+                            ) : (
+                              <Bell className="h-4 w-4" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{notification.message}</p>
+                              <p className="text-xs text-gray-500">{notification.time}</p>
+                              {associatedRecording && (
+                                <Badge variant="secondary" className="mt-1 text-xs">
+                                  Recording Available
+                                </Badge>
+                              )}
+                            </div>
+                            <button
+                              className="text-red-500 text-xs font-bold px-1 py-0.5"
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent triggering the onClick for the parent div
+                                handleRemoveNotification(notification.id);
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
 
-      {showModal && (
-        <Modal onClose={closeModal}>
-<video 
-  key={selectedRecordingUrl} 
-  src={selectedRecordingUrl} 
-  controls 
-  autoPlay 
-  onLoadedData={() => setIsLoading(false)} 
-  onError={() => console.error('Error loading video')}
-  width="100%"
-/>
-{isLoading && <p>Loading...</p>}
+                    {showModal && (
+                      <Modal onClose={closeModal}>
+                        <video
+                          key={selectedRecordingUrl}
+                          src={selectedRecordingUrl}
+                          controls
+                          autoPlay
+                          onLoadedData={() => setIsLoading(false)}
+                          onError={() => console.error('Error loading video')}
+                          width="100%"
+                        />
+                        {isLoading && <p>Loading...</p>}
 
-        </Modal>
-      )}
-    </div>
+                      </Modal>
+                    )}
+                  </div>
 
                 </ScrollArea>
               </CardContent>
