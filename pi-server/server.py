@@ -13,7 +13,6 @@ import json
 import cv2
 import collections
 import subprocess
-from video_storage import VideoStorageHandler  # Import VideoStorageHandler
 
 
 logging.basicConfig(
@@ -21,14 +20,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-
-
-
-
-video_storage_handler = VideoStorageHandler(buffer_time=4, fps=30, frame_size=(640, 480))
-
-
 
 # FastAPI app for HTTP endpoints (Port 5004)
 app = FastAPI()
@@ -111,39 +102,28 @@ notifications_app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+video_handler = VideoStreamHandler()
 
-@notifications_app.websocket("/notifications")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    logger.info("New notification client connected")
+@notifications_app.post("/save-video/{video_id}")
+async def save_video(video_id: str):
+    if not video_id:
+        raise HTTPException(status_code=400, detail="Invalid video ID")
     try:
-        while True:
-            message = await websocket.receive_text()
-            logger.info(f"Received message from notification client: {message}")
-            try:
-                data = json.loads(message)
-                notification_id = data.get("notificationId")
-                if notification_id:
-                    await video_storage_handler.save_video_clip(f"notification_{notification_id}")
-                    logger.info(f"Saved video with filename notification_{notification_id}.mp4")
-            except json.JSONDecodeError as e:
-                logger.error(f"Invalid JSON message received: {message}")
-            await websocket.send_text(f"Acknowledged: {message}")
+        output_path = f"last_4_seconds_{video_id}.mp4"
+        video_handler.save_last_4_seconds(output_path)
+        return {"message": f"Saved last 4 seconds of video as {output_path}"}
     except Exception as e:
-        logger.error(f"Error with notification WebSocket: {e}")
-    finally:
-        logger.info("Notification client disconnected")
+        logger.error(f"Error saving video: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save video")
 
 
 async def main():
-    video_handler = VideoStreamHandler()
     audio_handler = AudioStreamHandler()
     mic_handler = MicStreamHandler()
     
-    
     try:
         await asyncio.gather(
-            video_handler.start_server(video_storage_handler),
+            video_handler.start_server(),
             audio_handler.start_server(),
             mic_handler.start_server()
         )
