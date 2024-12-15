@@ -94,6 +94,7 @@ const App = () => {
       const response = await fetch(`http://${serverUrl}:5004/recordings`);
       if (!response.ok) throw new Error('Failed to fetch recordings');
 
+
       const data = await response.json();
       console.log('Recordings fetched successfully:', data);
       // Only update recordings if they have changed
@@ -207,6 +208,29 @@ const App = () => {
           console.error('Error deleting file:', error);
         });
 
+      return updated;
+    });
+  };
+
+
+
+  const handleMotionDetection = () => {
+    // Create new notification
+    const newNotification = {
+      id: Date.now(),
+      type: 'motion',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      message: 'Motion detected',
+      date: new Date().toLocaleDateString(),
+    };
+
+    // Start recording automatically
+    handleRecordVideo('motion', newNotification.id);
+
+    // Update notifications
+    setNotifications(prev => {
+      const updated = [newNotification, ...prev];
+      localStorage.setItem('doorbell-notifications', JSON.stringify(updated));
       return updated;
     });
   };
