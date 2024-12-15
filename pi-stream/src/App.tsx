@@ -436,6 +436,15 @@ const App = () => {
                   </Badge>
                 )}
               </div>
+              <button 
+                            className="text-red-500 text-xs font-bold px-1 py-0.5" 
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent triggering the onClick for the parent div
+                              handleRemoveNotification(notification.id);
+                            }}
+                          >
+                            ✕
+                          </button>
             </div>
           );
         })}
