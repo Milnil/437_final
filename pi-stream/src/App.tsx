@@ -59,6 +59,9 @@ const App = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isMicEnabled, setIsMicEnabled] = useState(true);
+  const [videoUrl, setVideoUrl] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   const [notifications, setNotifications] = useState(() => {
     const saved = localStorage.getItem('doorbell-notifications');
     if (saved) return JSON.parse(saved);
@@ -101,34 +104,40 @@ const App = () => {
   });
 
   useEffect(() => {
-      const fetchRecordings = async () => {
-          try {
-              console.log('Fetching recordings from the Raspberry Pi...');
-              const response = await fetch(`http://${serverUrl}:5004/recordings`); 
-              if (!response.ok) {
-                  throw new Error('Failed to fetch recordings from the backend');
-              }
-              const data = await response.json();
+    const fetchRecordings = async () => {
+      try {
+        const response = await fetch(`http://${serverUrl}:5004/recordings`);
+        if (!response.ok) throw new Error('Failed to fetch recordings');
+        const data = await response.json();
+        setRecordings(data.recordings);
+      } catch (error) {
+        console.error('Error fetching recordings:', error);
+      }
+    };
 
-              const formattedRecordings = data.recordings.map((recording, index) => ({
-                  id: index + 1,
-                  filename: recording.filename,
-                  date: new Date(recording.created * 1000).toLocaleDateString(),
-                  time: new Date(recording.created * 1000).toLocaleTimeString(),
-                  size: `${(recording.size / (1024 * 1024)).toFixed(2)} MB`, // Format size as MB
-                  videoUrl: `http://${serverUrl}:5004/videos/${recording.filename}` // Full URL to the video file
-              }));
+    fetchRecordings();
+  }, [serverUrl]);
 
-              setRecordings(formattedRecordings);
-              localStorage.setItem('doorbell-recordings', JSON.stringify(formattedRecordings));
-              console.log('Recordings updated from the Raspberry Pi:', formattedRecordings);
-          } catch (error) {
-              console.error('Error fetching recordings:', error);
-          }
-      };
+  const updateNotificationRecordings = () => {
+    setNotifications((prevNotifications) => 
+      prevNotifications.map((notification) => {
+        const associatedRecording = recordings.find(
+          (recording) => recording.filename.includes(notification.id)
+        );
+        if (associatedRecording) {
+          return {
+            ...notification,
+            clipUrl: `http://${serverUrl}:5004/videos/${associatedRecording.filename}`
+          };
+        }
+        return notification;
+      })
+    );
+  };
 
-      fetchRecordings();
-  }, [serverUrl]); // Added serverUrl as a dependency to ensure re-fetching if it changes
+  useEffect(() => {
+    updateNotificationRecordings();
+  }, [recordings]);
 
 
   const [selectedNotification, setSelectedNotification] = useState(null);
@@ -168,40 +177,6 @@ const App = () => {
       ws.onclose = () => {
           console.log('WebSocket connection to notifications server closed.');
       };
-  };
-
-
-  const fetchVideoForNotification = async (serverUrl, notificationId) => {
-      try {
-          console.log(`Fetching video for notification ID: ${notificationId}...`);
-          const response = await fetch(`http://${serverUrl}:5004/videos/${notificationId}.mp4`);
-          
-          if (!response.ok) {
-              throw new Error('Failed to fetch video from backend');
-          }
-          
-          const blob = await response.blob();
-          
-          const fileName = `notification_${notificationId}.mp4`;
-          const file = new File([blob], fileName, { type: 'video/mp4' });
-
-          const formData = new FormData();
-          formData.append('file', file);
-
-          console.log('Uploading saved video to server...');
-          const uploadResponse = await fetch(`http://${serverUrl}:5004/save-video`, {
-              method: 'POST',
-              body: formData
-          });
-
-          const data = await uploadResponse.json();
-          console.log('File saved successfully:', data);
-
-          return file;
-      } catch (error) {
-          console.error('Error fetching video clip:', error);
-          return null;
-      }
   };
 
 
