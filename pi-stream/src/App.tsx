@@ -160,7 +160,7 @@ const App = () => {
     const lastExecutionTime = localStorage.getItem('lastPersonDetectedTime');
 
     // Check if the function was called in the last 5 minutes (300,000 milliseconds)
-    if (lastExecutionTime && currentTime - parseInt(lastExecutionTime, 10) < 0) {
+    if (lastExecutionTime && currentTime - parseInt(lastExecutionTime, 10) < 300000) {
       console.log('handlePersonDetected was called recently. Skipping execution.');
       return; // Exit early if called within the last 5 minutes
     }
@@ -346,17 +346,6 @@ const App = () => {
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-center">
                   <CardTitle className="text-lg">Activity</CardTitle>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button size="icon" className="h-8 w-8">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>Clear All</DropdownMenuItem>
-                      <DropdownMenuItem>Export Log</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 </div>
               </CardHeader>
               <CardContent>
@@ -371,7 +360,7 @@ const App = () => {
                         return (
                           <div
                             key={notification.id}
-                            className={`flex items-center gap-2 p-2 rounded-lg bg-gray-50/50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 
+                            className={`group flex items-center gap-2 p-2 rounded-lg bg-gray-50/50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 
                 ${associatedRecording ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/70' : ''}`}
                             onClick={() => handleNotificationClick(associatedRecording)}
                           >
@@ -390,13 +379,25 @@ const App = () => {
                               )}
                             </div>
                             <button
-                              className="text-red-500 text-xs font-bold px-1 py-0.5"
+                              className="opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-700 p-1.5 rounded-full transition-opacity"
                               onClick={(e) => {
-                                e.stopPropagation(); // Prevent triggering the onClick for the parent div
+                                e.stopPropagation();
                                 handleRemoveNotification(notification.id);
                               }}
                             >
-                              ✕
+                              <svg
+                                className="h-3 w-3 text-gray-500 dark:text-gray-400"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M6 18L18 6M6 6l12 12"
+                                />
+                              </svg>
                             </button>
                           </div>
                         );

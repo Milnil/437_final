@@ -28,7 +28,7 @@ class VideoStreamHandler:
         full_res = self.picam2.camera_properties['PixelArraySize']
         self.picam2.set_controls({"ScalerCrop": [0, 0, full_res[0], full_res[1]]})
         self.clients = set()
-        self.frame_buffer = collections.deque(maxlen=200)  # Stores 4 seconds of video at 30fps (4 * 30 = 120 frames)
+        self.frame_buffer = collections.deque(maxlen=300)  # Stores 10 seconds of video at 30fps (10 * 30 = 300 frames)
 
     async def handle_client(self, websocket):
         try:
