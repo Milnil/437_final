@@ -82,7 +82,8 @@ const App = () => {
         time: '10:30',
         duration: '0:15',
         type: 'motion',
-        videoUrl: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4' // placeholder video
+        videoUrl: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4', // placeholder video,
+        filename: "hi"
       }
     ];
   });
@@ -298,7 +299,7 @@ const App = () => {
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h1 className="text-2xl font-bold">Smart Doorbell</h1>
+            <h1 className="text-2xl font-bold">DoorWAI</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">Security Dashboard</p>
           </div>
           <DropdownMenu>
@@ -379,14 +380,14 @@ const App = () => {
                               )}
                             </div>
                             <button
-                              className="opacity-0 group-hover:opacity-100 hover:bg-gray-200 dark:hover:bg-gray-700 p-1.5 rounded-full transition-opacity"
+                              className="opacity-0 group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/30 p-1.5 rounded-full transition-all duration-200"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleRemoveNotification(notification.id);
                               }}
                             >
                               <svg
-                                className="h-3 w-3 text-gray-500 dark:text-gray-400"
+                                className="h-3 w-3 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
