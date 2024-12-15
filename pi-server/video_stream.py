@@ -57,23 +57,24 @@ class VideoStreamHandler:
         try:
             height, width, layers = self.frame_buffer[0].shape
             logger.info(f"Video frame size: {width}x{height} with {layers} color channels.")
+            
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
             video_writer = cv2.VideoWriter(output_path, fourcc, 30, (width, height))
             
             frame_count = 0
             for frame in list(self.frame_buffer):  # Convert deque to list to avoid issues during iteration
-                if frame is None or frame.size == 0:
-                    logger.warning(f"Frame {frame_count} is empty or invalid.")
-                else:
+                if frame is not None and frame.size > 0:
                     video_writer.write(frame)
                     frame_count += 1
 
-            video_writer.release()
             logger.info(f"Successfully saved {frame_count} frames to {output_path}.")
         except Exception as e:
             logger.error(f"Error while saving the video: {e}")
         finally:
+            if 'video_writer' in locals() and video_writer.isOpened():
+                video_writer.release()
             logger.info(f"Finished saving video to {output_path}.")
+
 
 
     async def start_server(self):
