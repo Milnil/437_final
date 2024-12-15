@@ -194,7 +194,7 @@ const App = () => {
     const lastExecutionTime = localStorage.getItem('lastPersonDetectedTime');
 
     // Check if the function was called in the last 5 minutes (300,000 milliseconds)
-    if (lastExecutionTime && currentTime - parseInt(lastExecutionTime, 10) < 300000) {
+    if (lastExecutionTime && currentTime - parseInt(lastExecutionTime, 10) < 0) {
       console.log('handlePersonDetected was called recently. Skipping execution.');
       return; // Exit early if called within the last 5 minutes
     }

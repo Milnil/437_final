@@ -34,24 +34,15 @@ class VideoStreamHandler:
         """
         while True:
             try:
-                # Capture a single frame from the camera
                 frame = self.picam2.capture_array()
-
-                # Swap red and blue channels for each pixel (RGB to BGR)
-                frame[:, :, [0, 2]] = frame[:, :, [2, 0]]
-
-                # Add frame to VideoStorageHandler's buffer for saving video clips
-                storage_handler.add_frame(frame)
-
-                # Convert frame to JPEG for WebSocket transmission
-                ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                frame[:, :, [0, 2]] = frame[:, :, [2, 0]]  # Swap red and blue channels
+                storage_handler.add_frame(frame)  # Add frame to VideoStorageHandler's buffer
                 
+                ret, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
                 if ret:
-                    # Send frame to all connected WebSocket clients
                     await asyncio.gather(*(client.send(jpeg.tobytes()) for client in self.clients if not client.closed))
                 
-                # Limit frame rate to ~30 fps
-                await asyncio.sleep(0.033)
+                await asyncio.sleep(0.033)  # ~30fps
             except Exception as e:
                 logger.error(f"Error capturing or broadcasting frame: {e}")
 
@@ -66,15 +57,10 @@ class VideoStreamHandler:
             
             while True:
                 try:
-                    # Check for any incoming messages from the client
                     message = await asyncio.wait_for(websocket.recv(), timeout=0.1)
-                    if message == "person_detected":
+                    if message:
                         logger.info("Received 'person_detected' message from client")
-                        # Option 1: Wait for video save to complete (blocking)
-                        # await storage_handler.save_video_clip(f"notification_{int(asyncio.get_event_loop().time() * 1000)}")
-                        
-                        # Option 2: Run save in the background (non-blocking)
-                        asyncio.create_task(storage_handler.save_video_clip(f"notification_{int(asyncio.get_event_loop().time() * 1000)}"))
+                        asyncio.create_task(storage_handler.save_video_clip(f"notification_{message}"))
                 except asyncio.TimeoutError:
                     pass  # No message received, continue processing frames
 
@@ -84,14 +70,12 @@ class VideoStreamHandler:
             self.clients.remove(websocket)
             logger.info(f"Video client disconnected. Total clients: {len(self.clients)}")
 
-
     async def start_server(self, storage_handler):
         """
         Starts the WebSocket server to handle video streaming.
         """
         logger.info("Starting video stream server...")
         
-        # Launch the frame capture and broadcast task
         broadcast_task = asyncio.create_task(self.capture_and_broadcast(storage_handler))
         
         try:
