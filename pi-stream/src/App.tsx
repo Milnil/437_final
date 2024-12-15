@@ -3,9 +3,6 @@ import { Bell, Camera, Video, VideoOff, Mic, MicOff, Volume2, VolumeX, MoreVerti
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -17,42 +14,9 @@ import {
 import { VideoStream } from './components/VideoStream';
 import { AudioStream } from './components/AudioStream';
 import { MicrophoneStream } from './components/MicrophoneStream';
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import clsx from 'clsx';
 import axios from 'axios'
 import Modal from './components/Modal';
 
-const VideoPlayerModal = ({ notification, recording, isOpen, onClose }) => {
-  if (!recording) return null;
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto p-6">
-        <div className="w-full space-y-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="text-lg font-semibold">{notification.message}</h3>
-              <p className="text-sm text-gray-500">
-                {notification.date} at {recording.time} ({recording.duration})
-              </p>
-            </div>
-          </div>
-
-          <div className="w-full rounded-lg overflow-hidden bg-black">
-            <div className="aspect-video relative">
-              <video
-                className="absolute inset-0 w-full h-full object-contain"
-                controls
-                autoPlay
-                src={recording.videoUrl}
-              />
-            </div>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-};
 
 
 const App = () => {
@@ -129,7 +93,7 @@ const App = () => {
       console.log('Fetching recordings from backend...');
       const response = await fetch(`http://${serverUrl}:5004/recordings`);
       if (!response.ok) throw new Error('Failed to fetch recordings');
-      
+
       const data = await response.json();
       console.log('Recordings fetched successfully:', data);
       // Only update recordings if they have changed
@@ -149,7 +113,7 @@ const App = () => {
   }, [fetchRecordings]);
 
   const updateNotificationRecordings = useCallback(() => {
-    setNotifications((prevNotifications) => 
+    setNotifications((prevNotifications) =>
       prevNotifications.map((notification) => {
         const associatedRecording = recordings.find(
           (recording) => recording.filename.includes(notification.id)
@@ -222,50 +186,27 @@ const App = () => {
 
 
   const handleRemoveNotification = (id) => {
-      setNotifications(prev => {
-          const updated = prev.filter(notification => notification.id !== id);
-          localStorage.setItem('doorbell-notifications', JSON.stringify(updated));
-
-          const fileName = `notification_${id}.mp4`;
-          fetch(`http://${serverUrl}:5004/videos/${encodeURIComponent(fileName)}`, {
-              method: 'DELETE',
-          })
-          .then(response => {
-              if (!response.ok) {
-                  throw new Error('Failed to delete the file from the server');
-              }
-              return response.json();
-          })
-          .then(data => {
-              console.log('File deleted successfully:', data);
-          })
-          .catch(error => {
-              console.error('Error deleting file:', error);
-          });
-
-          return updated;
-      });
-  };
-
-
-
-  const handleMotionDetection = () => {
-    // Create new notification
-    const newNotification = {
-      id: Date.now(),
-      type: 'motion',
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      message: 'Motion detected',
-      date: new Date().toLocaleDateString(),
-    };
-
-    // Start recording automatically
-    handleRecordVideo('motion', newNotification.id);
-
-    // Update notifications
     setNotifications(prev => {
-      const updated = [newNotification, ...prev];
+      const updated = prev.filter(notification => notification.id !== id);
       localStorage.setItem('doorbell-notifications', JSON.stringify(updated));
+
+      const fileName = `notification_${id}.mp4`;
+      fetch(`http://${serverUrl}:5004/videos/${encodeURIComponent(fileName)}`, {
+        method: 'DELETE',
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to delete the file from the server');
+          }
+          return response.json();
+        })
+        .then(data => {
+          console.log('File deleted successfully:', data);
+        })
+        .catch(error => {
+          console.error('Error deleting file:', error);
+        });
+
       return updated;
     });
   };
@@ -396,64 +337,75 @@ const App = () => {
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-[calc(100vh-220px)]">
-<div>
-      <div className="space-y-2">
-        {notifications.map((notification) => {
-          const associatedRecording = recordings.find(
-            r => r.notificationId === notification.id || r.filename.includes(notification.id)
-          );
+                  <div>
+                    <div className="space-y-2">
+                      {notifications.map((notification) => {
+                        const associatedRecording = recordings.find(
+                          r => r.notificationId === notification.id || r.filename.includes(notification.id)
+                        );
 
-          return (
-            <div
-              key={notification.id}
-              className={`flex items-center gap-2 p-2 rounded-lg bg-gray-50/50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 
+                        return (
+                          <div
+                            key={notification.id}
+                            className={`flex items-center gap-2 p-2 rounded-lg bg-gray-50/50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 
                 ${associatedRecording ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/70' : ''}`}
-              onClick={() => handleNotificationClick(associatedRecording)}
-            >
-              {notification.type === 'motion' ? (
-                <Camera className="h-4 w-4" />
-              ) : (
-                <Bell className="h-4 w-4" />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{notification.message}</p>
-                <p className="text-xs text-gray-500">{notification.time}</p>
-                {associatedRecording && (
-                  <Badge variant="secondary" className="mt-1 text-xs">
-                    Recording Available
-                  </Badge>
-                )}
-              </div>
-              <button 
-                            className="text-red-500 text-xs font-bold px-1 py-0.5" 
-                            onClick={(e) => {
-                              e.stopPropagation(); // Prevent triggering the onClick for the parent div
-                              handleRemoveNotification(notification.id);
-                            }}
+                            onClick={() => handleNotificationClick(associatedRecording)}
                           >
-                            ✕
-                          </button>
-            </div>
-          );
-        })}
-      </div>
+                            {notification.type === 'motion' ? (
+                              <Camera className="h-4 w-4" />
+                            ) : (
+                              <Bell className="h-4 w-4" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{notification.message}</p>
+                              <p className="text-xs text-gray-500">{notification.time}</p>
+                              {associatedRecording && (
+                                <Badge variant="secondary" className="mt-1 text-xs">
+                                  Recording Available
+                                </Badge>
+                              )}
+                            </div>
+                            <button
+                              className="text-red-500 text-xs font-bold px-1 py-0.5"
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent triggering the onClick for the parent div
+                                handleRemoveNotification(notification.id);
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
 
-      {showModal && (
-        <Modal onClose={closeModal}>
-<video 
-  key={selectedRecordingUrl} 
-  src={selectedRecordingUrl} 
-  controls 
-  autoPlay 
-  onLoadedData={() => setIsLoading(false)} 
-  onError={() => console.error('Error loading video')}
-  width="100%"
-/>
-{isLoading && <p>Loading...</p>}
-
-        </Modal>
-      )}
-    </div>
+                    {showModal && (
+                      <Modal
+                        onClose={closeModal}
+                        title="Recording Playback"
+                        subtitle={`Recorded on ${new Date().toLocaleDateString()}`}
+                      >
+                        <div className="w-full rounded-lg overflow-hidden bg-black">
+                          <div className="aspect-video relative">
+                            <video
+                              key={selectedRecordingUrl}
+                              src={selectedRecordingUrl}
+                              controls
+                              autoPlay
+                              onLoadedData={() => setIsLoading(false)}
+                              onError={() => console.error('Error loading video')}
+                              className="w-full h-full object-contain"
+                            />
+                            {isLoading && (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <p className="text-white">Loading...</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </Modal>
+                    )}
+                  </div>
 
                 </ScrollArea>
               </CardContent>
@@ -546,12 +498,7 @@ const App = () => {
         </div>
       </div>
 
-      <VideoPlayerModal
-        notification={selectedNotification}
-        recording={selectedRecording}
-        isOpen={!!selectedNotification}
-        onClose={() => setSelectedNotification(null)}
-      />
+
     </div>
   );
 };
