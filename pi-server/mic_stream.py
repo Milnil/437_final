@@ -86,7 +86,7 @@ class MicStreamHandler:
                     if frames_received % 100 == 0:
                         elapsed = time.time() - start_time
                         rate = frames_received / elapsed
-                        logger.debug(f"Receiving from client [ID: {client_id}] at {rate:.2f} fps")
+                        logger.info(f"Receiving from client [ID: {client_id}] at {rate:.2f} fps")
                     
                     try:
                         self.buffer.put_nowait(data)

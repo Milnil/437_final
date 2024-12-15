@@ -497,11 +497,13 @@ const App = () => {
                             className="w-full h-full object-contain"
                           />
                           <AudioStream
-                            isStreaming={isStreaming && !isMuted}
+                            isStreaming={isStreaming}
+                            isMuted={isMuted}
                             serverUrl={serverUrl}
                           />
                           <MicrophoneStream
-                            isStreaming={isStreaming && isMicEnabled}
+                            isStreaming={isStreaming}
+                            isMicEnabled={isMicEnabled}
                             serverUrl={serverUrl}
                           />
                         </>
