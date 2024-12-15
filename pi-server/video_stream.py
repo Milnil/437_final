@@ -49,6 +49,10 @@ class VideoStreamHandler:
             self.clients.remove(websocket)
             logger.info("Video client disconnected")
 
+    async def add_frame_to_buffer(self, frame):
+        """Asynchronously add frame to the frame buffer."""
+        self.frame_buffer.append(frame)
+
     async def save_last_4_seconds(self, output_path='last_4_seconds.mp4'):
         async with self.lock:
             if not self.frame_buffer:
