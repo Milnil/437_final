@@ -9,6 +9,8 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import os
 import wave
 import queue
+import websockets
+import asyncio
 
 logging.basicConfig(
     level=logging.INFO,
@@ -46,7 +48,20 @@ class MJPEGHandler(BaseHTTPRequestHandler):
         self.wfile.write(frame_data)
         self.wfile.write(b"\r\n")
 
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_cors_headers()
+        self.end_headers()
+
+    def send_cors_headers(self):
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+
     def do_GET(self):
+        # Add CORS headers to all responses
+        self.send_cors_headers()
+        
         if self.path == '/video':
             logging.info("Video stream requested")
             self.send_response(200)
@@ -166,11 +181,31 @@ class CameraServer(HTTPServer):
         self.picam2.stop()
         super().shutdown()
 
+class WebSocketServer:
+    def __init__(self, camera_server):
+        self.camera_server = camera_server
+
+    async def handler(self, websocket):
+        try:
+            while self.camera_server.running:
+                audio_data = self.camera_server.audio_buffer.get()
+                if audio_data is not None:
+                    await websocket.send(audio_data)
+                await asyncio.sleep(0.01)
+        except websockets.exceptions.ConnectionClosed:
+            logging.info("WebSocket connection closed")
+
 if __name__ == "__main__":
-    server = CameraServer(('0.0.0.0', 8000), MJPEGHandler)
+    camera_server = CameraServer(('0.0.0.0', 8000), MJPEGHandler)
+    ws_server = WebSocketServer(camera_server)
+    
+    async def main():
+        async with websockets.serve(ws_server.handler, '0.0.0.0', 8001):
+            await asyncio.Future()  # run forever
+
     try:
-        logging.info("Starting server on http://0.0.0.0:8000")
-        server.serve_forever()
+        logging.info("Starting servers...")
+        asyncio.run(main())
     except KeyboardInterrupt:
         logging.info("Shutting down...")
-        server.shutdown_server()
+        camera_server.shutdown_server()
